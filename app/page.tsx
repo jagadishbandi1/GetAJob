@@ -1,65 +1,761 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface Rule { id: number; trigger_keyword: string; response: string }
+interface Account { id: number; platform: string; email: string }
+interface Application {
+  id: number; job_url: string; company: string; job_title: string;
+  location: string; compensation: string; status: string; log: string; applied_at: string
+}
+interface TrainingExample { id: number; question_text: string; answer_given: string; job_url: string; created_at: string }
+interface Document { id: number; name: string; file_type: string; preview: string; created_at: string }
+interface Profile {
+  full_name: string; email: string; phone: string;
+  location: string; linkedin: string; website: string;
+  resume_text: string; free_context: string; resume_file_name: string;
+}
+
+const defaultProfile: Profile = {
+  full_name: '', email: '', phone: '', location: '',
+  linkedin: '', website: '', resume_text: '', free_context: '', resume_file_name: ''
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+};
+const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
+
+const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
+  running: { bg: 'rgba(217,119,6,0.15)', color: '#d97706' },
+  done:    { bg: 'rgba(96,147,93,0.15)', color: 'var(--accent)' },
+  failed:  { bg: 'rgba(220,38,38,0.15)', color: 'var(--red)' },
+  pending: { bg: 'rgba(80,80,80,0.2)',   color: '#666' },
+};
 
 export default function Home() {
+  const [section, setSection] = useState<'home' | 'tracker' | 'knowledge' | 'training' | 'accounts'>('home');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  const [jobUrl, setJobUrl] = useState('');
+  const [applying, setApplying] = useState(false);
+  const [appId, setAppId] = useState<number | null>(null);
+  const [appLog, setAppLog] = useState('');
+  const [appStatus, setAppStatus] = useState('');
+
+  const [profile, setProfile] = useState<Profile>(defaultProfile);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [resumeUploading, setResumeUploading] = useState(false);
+
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [newRule, setNewRule] = useState({ trigger_keyword: '', response: '' });
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [newAccount, setNewAccount] = useState({ platform: '', email: '', password: '' });
+
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [expandedApp, setExpandedApp] = useState<number | null>(null);
+  const [showFailedApps, setShowFailedApps] = useState(false);
+
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [docUploading, setDocUploading] = useState(false);
+
+  const [training, setTraining] = useState<TrainingExample[]>([]);
+
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { fetchAll(); }, []);
+
+  useEffect(() => {
+    if (!appId) return;
+    const iv = setInterval(async () => {
+      const res = await fetch(`/api/applications?id=${appId}`);
+      const d = await res.json();
+      if (d) {
+        setAppLog(d.log || '');
+        setAppStatus(d.status || '');
+        if (d.status === 'done' || d.status === 'failed') {
+          clearInterval(iv);
+          setApplying(false);
+          fetchApplications();
+        }
+      }
+    }, 1500);
+    return () => clearInterval(iv);
+  }, [appId]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) setDrawerOpen(false);
+    };
+    if (drawerOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [drawerOpen]);
+
+  async function fetchAll() {
+    await Promise.all([fetchProfile(), fetchApplications(), fetchTraining(), fetchDocuments()]);
+  }
+
+  async function fetchProfile() {
+    const res = await fetch('/api/profile');
+    const d = await res.json();
+    if (d.profile) setProfile({ ...defaultProfile, ...d.profile });
+    setRules(d.rules || []);
+    setAccounts(d.accounts || []);
+  }
+
+  async function fetchApplications() {
+    const res = await fetch('/api/applications');
+    setApplications(await res.json() || []);
+  }
+
+  async function fetchTraining() {
+    const res = await fetch('/api/training');
+    setTraining(await res.json() || []);
+  }
+
+  async function fetchDocuments() {
+    const res = await fetch('/api/documents');
+    setDocuments(await res.json() || []);
+  }
+
+  async function handleApply() {
+    if (!jobUrl.trim()) return;
+    setApplying(true); setAppLog(''); setAppStatus('running');
+    const res = await fetch('/api/apply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobUrl }),
+    });
+    const d = await res.json();
+    setAppId(d.appId);
+  }
+
+  async function saveProfile() {
+    setSavingProfile(true); setProfileSaved(false);
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'profile', ...profile }),
+    });
+    setSavingProfile(false); setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 3000);
+  }
+
+  async function uploadResume(file: File) {
+    setResumeUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('type', 'resume');
+      fd.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (d.ok) await fetchProfile();
+    } finally {
+      setResumeUploading(false);
+    }
+  }
+
+  async function uploadDocument(file: File) {
+    setDocUploading(true);
+    const fd = new FormData();
+    fd.append('type', 'document');
+    fd.append('file', file);
+    await fetch('/api/upload', { method: 'POST', body: fd });
+    setDocUploading(false);
+    fetchDocuments();
+  }
+
+  async function deleteDocument(id: number) {
+    await fetch(`/api/documents?id=${id}`, { method: 'DELETE' });
+    fetchDocuments();
+  }
+
+  async function addRule() {
+    if (!newRule.trigger_keyword || !newRule.response) return;
+    await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'rule', ...newRule }) });
+    setNewRule({ trigger_keyword: '', response: '' }); fetchProfile();
+  }
+
+  async function deleteRule(id: number) {
+    await fetch(`/api/profile?type=rule&id=${id}`, { method: 'DELETE' }); fetchProfile();
+  }
+
+  async function addAccount() {
+    if (!newAccount.platform || !newAccount.email || !newAccount.password) return;
+    await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'account', ...newAccount }) });
+    setNewAccount({ platform: '', email: '', password: '' }); fetchProfile();
+  }
+
+  async function deleteAccount(id: number) {
+    await fetch(`/api/profile?type=account&id=${id}`, { method: 'DELETE' }); fetchProfile();
+  }
+
+  async function deleteApplication(id: number) {
+    await fetch(`/api/applications?id=${id}`, { method: 'DELETE' });
+    fetchApplications();
+  }
+
+  async function deleteTraining(id?: number) {
+    await fetch(id ? `/api/training?id=${id}` : '/api/training', { method: 'DELETE' });
+    fetchTraining();
+  }
+
+  const drawerItems = [
+    { key: 'accounts', label: 'Accounts', icon: '🔑' },
+    { key: 'training', label: 'Training Data', icon: '🧠' },
+  ] as const;
+
+  /* ─── shared style helpers ─── */
+  const card: React.CSSProperties = {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 20,
+    padding: '24px',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    padding: '10px 14px',
+    color: 'var(--text-primary)',
+    fontSize: 14,
+    outline: 'none',
+    width: '100%',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background: 'var(--accent)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 14,
+    padding: '12px 28px',
+    fontWeight: 600,
+    fontSize: 14,
+    cursor: 'pointer',
+  };
+
+  const btnGhost: React.CSSProperties = {
+    background: 'var(--bg-elevated)',
+    color: 'var(--text-secondary)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    padding: '9px 18px',
+    fontWeight: 500,
+    fontSize: 13,
+    cursor: 'pointer',
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+
+      {/* ── NAV ── */}
+      <div style={{ position: 'fixed', top: 20, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', pointerEvents: 'none', padding: '0 16px' }}>
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            pointerEvents: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '6px 8px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.75)',
+            border: '1px solid var(--border)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+          }}
+        >
+          {/* Logo */}
+          <button
+            onClick={() => setSection('home')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 14px', borderRadius: 999,
+              background: section === 'home' ? 'var(--bg-elevated)' : 'transparent',
+              border: 'none', cursor: 'pointer',
+              color: section === 'home' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: 600, fontSize: 13,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            <span style={{
+              width: 20, height: 20, borderRadius: '50%',
+              background: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 11, fontWeight: 700,
+            }}>G</span>
+            <span>GetAJobFaster</span>
+          </button>
+
+          <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
+          {(['tracker', 'knowledge'] as const).map(s => (
+            <button key={s} onClick={() => setSection(s)} style={{
+              padding: '7px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+              background: section === s ? 'var(--bg-elevated)' : 'transparent',
+              color: section === s ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: 500, fontSize: 13, textTransform: 'capitalize',
+            }}>
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+
+          <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
+          {/* Hamburger */}
+          <div style={{ position: 'relative' }} ref={drawerRef}>
+            <button
+              onClick={() => setDrawerOpen(v => !v)}
+              style={{
+                width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: drawerOpen ? 'var(--bg-elevated)' : 'transparent',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
+              }}
+            >
+              {[0, 1, 2].map(i => (
+                <motion.span key={i}
+                  animate={i === 1 ? { opacity: drawerOpen ? 0 : 1 } : { rotate: drawerOpen ? (i === 0 ? 45 : -45) : 0, y: drawerOpen ? (i === 0 ? 5 : -5) : 0 }}
+                  style={{ display: 'block', width: 14, height: 1, background: 'var(--text-secondary)', transformOrigin: 'center' }}
+                />
+              ))}
+            </button>
+            <AnimatePresence>
+              {drawerOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: -8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.92, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  style={{
+                    position: 'absolute', right: 0, top: 48, width: 180,
+                    borderRadius: 16, background: 'var(--bg-card)',
+                    border: '1px solid var(--border)', overflow: 'hidden',
+                  }}
+                >
+                  {drawerItems.map(item => (
+                    <button key={item.key}
+                      onClick={() => { setSection(item.key); setDrawerOpen(false); }}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+                        background: section === item.key ? 'var(--accent-bg)' : 'transparent',
+                        color: section === item.key ? 'var(--accent)' : 'var(--text-secondary)',
+                        fontWeight: section === item.key ? 600 : 400,
+                      }}
+                    >
+                      <span>{item.icon}</span> {item.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ── HOME ── */}
+      {section === 'home' && (
+        <motion.section initial="hidden" animate="visible" variants={stagger}
+          style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '96px 24px 128px' }}
+        >
+          <motion.div variants={fadeUp}>
+            <span style={{
+              display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+              color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 20,
+              padding: '4px 12px', borderRadius: 999,
+              background: 'var(--accent-bg)', border: '1px solid var(--accent-border)',
+            }}>Side project</span>
+          </motion.div>
+
+          <motion.h1 variants={fadeUp} style={{ fontSize: 'clamp(48px, 10vw, 88px)', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.03em', marginBottom: 24, color: 'var(--text-primary)' }}>
+            Get A Job<br />
+            <span style={{ color: 'var(--accent)' }}>Faster.</span>
+          </motion.h1>
+
+          <motion.p variants={fadeUp} style={{ fontSize: 16, color: 'var(--text-muted)', maxWidth: 480, lineHeight: 1.7, marginBottom: 12 }}>
+            I was so bored of copy-pasting my resume into the same 47 fields on every job site
+          </motion.p>
+          <motion.p variants={fadeUp} style={{ fontSize: 16, color: 'var(--text-muted)', maxWidth: 480, lineHeight: 1.7, marginBottom: 48 }}>
+            — so I built this instead. If you&apos;re a recruiter reading this:{' '}
+            <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              there&apos;s a solid chance the application that reached you came from this exact software. Respect the hustle.
+            </span>
+          </motion.p>
+
+          <motion.div variants={fadeUp} style={{ width: '100%', maxWidth: 560 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                style={{ ...inputStyle, flex: 1, padding: '14px 18px', borderRadius: 16, fontSize: 14 }}
+                placeholder="Paste a job URL and press Apply..."
+                value={jobUrl}
+                onChange={e => setJobUrl(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !applying && handleApply()}
+              />
+              <button
+                onClick={handleApply}
+                disabled={applying || !jobUrl.trim()}
+                style={{
+                  ...btnPrimary,
+                  borderRadius: 16, padding: '14px 28px', whiteSpace: 'nowrap',
+                  opacity: applying || !jobUrl.trim() ? 0.4 : 1,
+                  cursor: applying || !jobUrl.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {applying ? 'Running...' : 'Apply Now'}
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {(appLog || appStatus) && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  style={{ marginTop: 16, ...card, textAlign: 'left' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    {appStatus && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+                        ...(STATUS_STYLE[appStatus] || { bg: '#333', color: '#888' }),
+                        background: STATUS_STYLE[appStatus]?.bg,
+                      }}>{appStatus}</span>
+                    )}
+                  </div>
+                  <pre style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', maxHeight: 224, overflowY: 'auto', lineHeight: 1.6 }}>
+                    {appLog || 'Starting...'}
+                  </pre>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+
+          {/* Stats */}
+          <motion.div variants={fadeUp} style={{ marginTop: 96, display: 'flex', gap: 56, justifyContent: 'center' }}>
+            {[
+              { label: 'Applications', value: applications.length },
+              { label: 'Documents', value: documents.length },
+              { label: 'Training examples', value: training.length },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 40, fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, letterSpacing: '0.05em' }}>{s.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </motion.section>
+      )}
+
+      {/* ── KNOWLEDGE ── */}
+      {section === 'knowledge' && (
+        <motion.section initial="hidden" animate="visible" variants={stagger}
+          style={{ paddingTop: 112, paddingBottom: 96, padding: '112px 24px 96px', maxWidth: 640, margin: '0 auto' }}
+        >
+          <motion.div variants={fadeUp} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)', textTransform: 'uppercase' }}>Master Knowledge</span>
+            <h2 style={{ fontSize: 36, fontWeight: 800, marginTop: 8, marginBottom: 12, letterSpacing: '-0.02em' }}>Everything Claude knows about you.</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Your resume, docs, context, and rules. The more you give it, the better it fills.</p>
+          </motion.div>
+
+          {/* Resume */}
+          <motion.div variants={fadeUp} style={{ ...card, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 16 }}>Resume</h3>
+            <input ref={resumeInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx" style={{ display: 'none' }}
+              onChange={e => { if (e.target.files?.[0]) uploadResume(e.target.files[0]); }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <button onClick={() => resumeInputRef.current?.click()} disabled={resumeUploading} style={btnGhost}>
+                {resumeUploading ? 'Uploading...' : 'Upload Resume'}
+              </button>
+              {profile.resume_file_name && (
+                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
+                  {profile.resume_file_name}
+                </span>
+              )}
+            </div>
+            {profile.resume_text && (
+              <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {profile.resume_text}
+              </p>
+            )}
+          </motion.div>
+
+          {/* Personal Info */}
+          <motion.div variants={fadeUp} style={{ ...card, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 16 }}>Personal Info</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              {(['full_name', 'email', 'phone', 'location', 'linkedin', 'website'] as const).map(field => (
+                <div key={field}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'capitalize' }}>
+                    {field.replace('_', ' ')}
+                  </label>
+                  <input style={inputStyle} value={profile[field] || ''}
+                    onChange={e => setProfile(p => ({ ...p, [field]: e.target.value }))} />
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Free Context */}
+          <motion.div variants={fadeUp} style={{ ...card, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Free Context</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>Tell Claude anything — preferences, things to avoid, tone, constraints.</p>
+            <textarea style={{ ...inputStyle, height: 112, resize: 'none' }}
+              value={profile.free_context || ''}
+              onChange={e => setProfile(p => ({ ...p, free_context: e.target.value }))}
+              placeholder="e.g. Remote only. 2 weeks notice. Don't mention my gap year unless asked..." />
+          </motion.div>
+
+          {/* Save */}
+          <motion.div variants={fadeUp} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginBottom: 48 }}>
+            <button onClick={saveProfile} disabled={savingProfile} style={{ ...btnPrimary, opacity: savingProfile ? 0.5 : 1 }}>
+              {savingProfile ? 'Saving...' : 'Save Profile'}
+            </button>
+            <AnimatePresence>
+              {profileSaved && (
+                <motion.span initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                  style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 500 }}>Saved ✓</motion.span>
+              )}
+            </AnimatePresence>
+          </motion.div>
+
+          {/* Documents */}
+          <motion.div variants={fadeUp} style={{ ...card, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Reference Documents</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Cover letters, portfolios, certifications</p>
+              </div>
+              <input ref={docInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx" style={{ display: 'none' }}
+                onChange={e => { if (e.target.files?.[0]) uploadDocument(e.target.files[0]); }} />
+              <button onClick={() => docInputRef.current?.click()} disabled={docUploading} style={{ ...btnGhost, fontSize: 12 }}>
+                {docUploading ? 'Uploading...' : '+ Add'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {documents.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>No documents yet.</p>}
+              {documents.map(doc => (
+                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 16px' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.preview}</p>
+                  </div>
+                  <button onClick={() => deleteDocument(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, marginLeft: 12 }}>remove</button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Rules */}
+          <motion.div variants={fadeUp} style={card}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Answer Rules</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Override how Claude answers specific question types.</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input style={{ ...inputStyle, flex: 1 }} placeholder='Keyword (e.g. "salary")' value={newRule.trigger_keyword}
+                onChange={e => setNewRule(r => ({ ...r, trigger_keyword: e.target.value }))} />
+              <input style={{ ...inputStyle, flex: 1 }} placeholder='Answer (e.g. "$130k")' value={newRule.response}
+                onChange={e => setNewRule(r => ({ ...r, response: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && addRule()} />
+              <button onClick={addRule} style={{ ...btnPrimary, padding: '10px 18px', borderRadius: 12, whiteSpace: 'nowrap' }}>Add</button>
+            </div>
+            <AnimatePresence>
+              {rules.map(rule => (
+                <motion.div key={rule.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 16 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '10px 14px', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{rule.trigger_keyword}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>→</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.response}</span>
+                  </div>
+                  <button onClick={() => deleteRule(rule.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, marginLeft: 12 }}>remove</button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        </motion.section>
+      )}
+
+      {/* ── TRACKER ── */}
+      {section === 'tracker' && (
+        <motion.section initial="hidden" animate="visible" variants={stagger}
+          style={{ paddingTop: 112, paddingBottom: 96, padding: '112px 24px 96px', maxWidth: 720, margin: '0 auto' }}
+        >
+          <motion.div variants={fadeUp} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)', textTransform: 'uppercase' }}>Applications</span>
+            <h2 style={{ fontSize: 36, fontWeight: 800, marginTop: 8, marginBottom: 12, letterSpacing: '-0.02em' }}>Job Tracker</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Every application, in one place.</p>
+          </motion.div>
+
+          {/* Gmail notice */}
+          <motion.div variants={fadeUp} style={{ marginBottom: 24, padding: '14px 18px', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 16, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span style={{ color: 'var(--amber)', fontSize: 15, marginTop: 1 }}>⚠</span>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amber)' }}>Gmail sync coming soon</p>
+              <p style={{ fontSize: 12, color: '#a16207', marginTop: 2 }}>Connect Gmail to automatically pull job applications, status updates, and interview invites.</p>
+            </div>
+          </motion.div>
+
+          {(() => {
+            const activeApps = applications.filter(a => a.status !== 'failed');
+            const failedApps = applications.filter(a => a.status === 'failed');
+
+            const AppCard = ({ app }: { app: Application }) => {
+              const urlDomain = (() => { try { return new URL(app.job_url).hostname.replace('www.', ''); } catch { return app.job_url; } })();
+              const meta = [app.company || urlDomain, app.location, app.compensation].filter(Boolean).join(' · ');
+              const badge = STATUS_STYLE[app.status] || STATUS_STYLE.pending;
+              return (
+                <motion.div variants={fadeUp} style={{ ...card, padding: 0, overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
+                    onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {app.job_title || (app.status === 'running' ? 'Fetching details...' : urlDomain)}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: badge.bg, color: badge.color }}>{app.status}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{app.applied_at?.slice(0, 10)}</span>
+                      <button onClick={e => { e.stopPropagation(); deleteApplication(app.id); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px' }}
+                        title="Delete">✕</button>
+                      <motion.span animate={{ rotate: expandedApp === app.id ? 180 : 0 }}
+                        style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block' }}>▼</motion.span>
+                    </div>
+                  </div>
+                  <AnimatePresence>
+                    {expandedApp === app.id && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ padding: '10px 20px 4px' }}>
+                          <a href={app.job_url} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                            {app.job_url}
+                          </a>
+                        </div>
+                        {app.log && (
+                          <pre style={{ padding: '8px 20px 16px', fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', maxHeight: 192, overflowY: 'auto', lineHeight: 1.6 }}>
+                            {app.log}
+                          </pre>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            };
+
+            return (
+              <>
+                <motion.div variants={stagger}>
+                  {activeApps.length === 0 && failedApps.length === 0 && (
+                    <motion.div variants={fadeUp} style={{ textAlign: 'center', padding: '80px 0' }}>
+                      <p style={{ fontSize: 36, marginBottom: 16 }}>📭</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No applications yet. Paste a job URL on the home screen.</p>
+                    </motion.div>
+                  )}
+                  {activeApps.map(app => <AppCard key={app.id} app={app} />)}
+                </motion.div>
+
+                {failedApps.length > 0 && (
+                  <motion.div variants={fadeUp} style={{ marginTop: 16 }}>
+                    <button onClick={() => setShowFailedApps(v => !v)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '12px 18px', borderRadius: 16, border: '1px solid rgba(220,38,38,0.2)',
+                        background: 'rgba(220,38,38,0.06)', color: 'var(--red)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      }}>
+                      <span>{failedApps.length} failed attempt{failedApps.length !== 1 ? 's' : ''}</span>
+                      <motion.span animate={{ rotate: showFailedApps ? 180 : 0 }} style={{ fontSize: 10, display: 'block' }}>▼</motion.span>
+                    </button>
+                    <AnimatePresence>
+                      {showFailedApps && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          style={{ overflow: 'hidden' }}>
+                          <div style={{ paddingTop: 10 }}>
+                            {failedApps.map(app => <AppCard key={app.id} app={app} />)}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </>
+            );
+          })()}
+        </motion.section>
+      )}
+
+      {/* ── ACCOUNTS ── */}
+      {section === 'accounts' && (
+        <motion.section initial="hidden" animate="visible" variants={stagger}
+          style={{ paddingTop: 112, paddingBottom: 96, padding: '112px 24px 96px', maxWidth: 640, margin: '0 auto' }}
+        >
+          <motion.div variants={fadeUp} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)', textTransform: 'uppercase' }}>Credentials</span>
+            <h2 style={{ fontSize: 36, fontWeight: 800, marginTop: 8, marginBottom: 12, letterSpacing: '-0.02em' }}>Platform Accounts</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>The autofiller uses these to log in automatically.</p>
+          </motion.div>
+          <motion.div variants={fadeUp} style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            <input style={inputStyle} placeholder="Platform" value={newAccount.platform} onChange={e => setNewAccount(a => ({ ...a, platform: e.target.value }))} />
+            <input style={inputStyle} placeholder="Email" value={newAccount.email} onChange={e => setNewAccount(a => ({ ...a, email: e.target.value }))} />
+            <input type="password" style={inputStyle} placeholder="Password" value={newAccount.password} onChange={e => setNewAccount(a => ({ ...a, password: e.target.value }))} />
+            <button onClick={addAccount} style={{ ...btnPrimary, whiteSpace: 'nowrap', borderRadius: 12, padding: '10px 20px' }}>Add</button>
+          </motion.div>
+          <AnimatePresence>
+            {accounts.map(acc => (
+              <motion.div key={acc.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 16 }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...card, padding: '14px 18px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', padding: '2px 8px', borderRadius: 6 }}>{acc.platform}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{acc.email}</span>
+                </div>
+                <button onClick={() => deleteAccount(acc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12 }}>remove</button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.section>
+      )}
+
+      {/* ── TRAINING ── */}
+      {section === 'training' && (
+        <motion.section initial="hidden" animate="visible" variants={stagger}
+          style={{ paddingTop: 112, paddingBottom: 96, padding: '112px 24px 96px', maxWidth: 720, margin: '0 auto' }}
+        >
+          <motion.div variants={fadeUp} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)', textTransform: 'uppercase' }}>Memory</span>
+            <h2 style={{ fontSize: 36, fontWeight: 800, marginTop: 8, marginBottom: 12, letterSpacing: '-0.02em' }}>Training Data</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Claude remembers every answer it gives. The more it applies, the smarter it gets.</p>
+          </motion.div>
+          {training.length > 0 && (
+            <motion.div variants={fadeUp} style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+              <button onClick={() => deleteTraining()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--red)' }}>Clear all training data</button>
+            </motion.div>
+          )}
+          <motion.div variants={stagger} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {training.length === 0 && (
+              <motion.div variants={fadeUp} style={{ textAlign: 'center', padding: '80px 0' }}>
+                <p style={{ fontSize: 36, marginBottom: 16 }}>🧠</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No training data yet. Run your first application to start building it.</p>
+              </motion.div>
+            )}
+            {training.map(ex => (
+              <motion.div key={ex.id} variants={fadeUp}
+                style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, ...card, padding: '14px 18px' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 4 }}>{ex.question_text}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-primary)' }}>{ex.answer_given}</p>
+                  {ex.job_url && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.job_url}</p>}
+                </div>
+                <button onClick={() => deleteTraining(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, flexShrink: 0 }}>×</button>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+      )}
     </div>
   );
 }
