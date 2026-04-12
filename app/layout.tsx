@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import BottomNav from "./components/BottomNav";
 
 export const metadata: Metadata = {
-  title: "GRIP",
-  description: "Your goals. In your feed.",
+  title: "GetAJobFaster",
+  description: "Automated job application filler.",
 };
 
 export default function RootLayout({
@@ -24,7 +23,6 @@ export default function RootLayout({
       </head>
       <body style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}>
         {children}
-        <BottomNav />
       </body>
     </html>
   );
