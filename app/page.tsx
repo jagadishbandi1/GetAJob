@@ -29,7 +29,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   running: { bg: 'rgba(245,158,11,0.13)', color: '#f59e0b' },
   done:    { bg: 'rgba(96,147,93,0.15)',  color: '#7aad77' },
   failed:  { bg: 'rgba(239,68,68,0.13)',  color: '#f87171' },
-  pending: { bg: 'rgba(255,255,255,0.07)', color: 'oklch(0.52 0.01 148)' },
+  pending: { bg: 'rgba(255,255,255,0.07)', color: '#666677' },
 };
 
 /* ─── Animation variants ────────────────────────────── */
@@ -46,11 +46,11 @@ function CurtainWord({ word, delay = 0, style }: {
   word: string; delay?: number; style?: React.CSSProperties;
 }) {
   return (
-    <span style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top', lineHeight: 1.05 }}>
+    <span style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top', lineHeight: 1.0 }}>
       <motion.span
         initial={{ y: '110%' }}
         animate={{ y: 0 }}
-        transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1], delay }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay }}
         style={{ display: 'inline-block', ...style }}
       >
         {word}
@@ -93,24 +93,24 @@ const btnPrimary: React.CSSProperties = {
   background: 'var(--accent)',
   color: '#fff',
   border: 'none',
-  borderRadius: 14,
-  padding: '11px 26px',
-  fontFamily: "'Syne', sans-serif",
-  fontWeight: 700,
+  borderRadius: 12,
+  padding: '11px 24px',
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontWeight: 600,
   fontSize: 13,
-  letterSpacing: '0.03em',
+  letterSpacing: '0.02em',
   cursor: 'pointer',
   transition: 'opacity 0.2s, transform 0.15s',
   whiteSpace: 'nowrap' as const,
 };
 
 const btnGhost: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.06)',
+  background: 'rgba(255,255,255,0.05)',
   color: 'var(--text-secondary)',
   border: '1px solid var(--border)',
-  borderRadius: 12,
+  borderRadius: 10,
   padding: '9px 18px',
-  fontFamily: "'DM Sans', sans-serif",
+  fontFamily: "'Space Grotesk', sans-serif",
   fontWeight: 500,
   fontSize: 13,
   cursor: 'pointer',
@@ -121,13 +121,13 @@ const btnGhost: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   background: 'var(--bg-input)',
   border: '1px solid var(--border)',
-  borderRadius: 12,
+  borderRadius: 10,
   padding: '10px 14px',
   color: 'var(--text-primary)',
   fontSize: 14,
   outline: 'none',
   width: '100%',
-  fontFamily: "'DM Sans', inherit",
+  fontFamily: "'Space Grotesk', inherit",
 };
 
 /* ─── Page ──────────────────────────────────────────── */
@@ -193,9 +193,10 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handler);
   }, [drawerOpen]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchAll = useCallback(async () => {
     await Promise.all([fetchProfile(), fetchApplications(), fetchTraining(), fetchDocuments()]);
-  }, []);
+  }, []); // intentionally empty — stable on mount only
 
   async function fetchProfile() {
     const res = await fetch('/api/profile');
@@ -309,6 +310,7 @@ export default function Home() {
   }
 
   const drawerItems = [
+    { key: 'tracker'  as const, label: 'Tracker',  icon: '◉' },
     { key: 'accounts' as const, label: 'Accounts', icon: '⬡' },
     { key: 'training' as const, label: 'Training', icon: '◈' },
   ];
@@ -346,7 +348,7 @@ export default function Home() {
             background: section === 'home' ? 'rgba(255,255,255,0.08)' : 'transparent',
             border: 'none', cursor: 'pointer',
             color: section === 'home' ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontFamily: "'Syne', sans-serif",
+            fontFamily: "'Space Grotesk', sans-serif",
             fontWeight: 700, fontSize: 13,
             transition: 'all 0.2s',
           }}
@@ -356,7 +358,7 @@ export default function Home() {
             background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontSize: 11, fontWeight: 800,
-            fontFamily: "'Fraunces', serif",
+            fontFamily: "'Space Grotesk', sans-serif",
             fontStyle: 'italic',
             boxShadow: '0 0 10px rgba(96,147,93,0.5)',
           }}>G</span>
@@ -365,12 +367,12 @@ export default function Home() {
 
         <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
-        {(['tracker', 'knowledge'] as const).map(s => (
+        {(['knowledge'] as const).map(s => (
           <button key={s} onClick={() => setSection(s)} style={{
             padding: '7px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
             background: section === s ? 'rgba(255,255,255,0.08)' : 'transparent',
             color: section === s ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Space Grotesk', sans-serif",
             fontWeight: 500, fontSize: 13,
             transition: 'all 0.2s',
             textTransform: 'capitalize',
@@ -430,7 +432,7 @@ export default function Home() {
                       display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
                       background: section === item.key ? 'var(--accent-bg)' : 'transparent',
                       color: section === item.key ? 'var(--accent)' : 'var(--text-secondary)',
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Space Grotesk', sans-serif",
                       fontWeight: section === item.key ? 600 : 400,
                       transition: 'background 0.15s',
                     }}
@@ -448,22 +450,22 @@ export default function Home() {
 
   /* ─── BACKGROUND ──────────────────────────────────── */
   const Background = () => (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#0c1410' }}>
-      {/* Radial gradient orbs */}
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#08090d' }}>
+      {/* Subtle ambient orbs */}
       <div style={{
-        position: 'absolute', top: '-15%', left: '-10%',
-        width: '55%', height: '55%',
-        background: 'radial-gradient(ellipse, rgba(96,147,93,0.07) 0%, transparent 65%)',
+        position: 'absolute', top: '-20%', left: '-5%',
+        width: '50%', height: '60%',
+        background: 'radial-gradient(ellipse, rgba(96,147,93,0.06) 0%, transparent 65%)',
       }} />
       <div style={{
-        position: 'absolute', bottom: '-20%', right: '-8%',
-        width: '50%', height: '60%',
-        background: 'radial-gradient(ellipse, rgba(96,147,93,0.05) 0%, transparent 65%)',
+        position: 'absolute', bottom: '-15%', right: '-5%',
+        width: '45%', height: '55%',
+        background: 'radial-gradient(ellipse, rgba(80,100,200,0.05) 0%, transparent 65%)',
       }} />
       {/* Dot grid */}
       <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px)',
+        position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.045) 1px, transparent 1px)',
         backgroundSize: '36px 36px',
         maskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 20%, transparent 80%)',
         WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 40%, black 20%, transparent 80%)',
@@ -476,11 +478,11 @@ export default function Home() {
     <motion.div variants={fadeUp} style={{ textAlign: 'center', marginBottom: 52 }}>
       <div className="eyebrow" style={{ marginBottom: 18 }}>{eyebrow}</div>
       <h2 style={{
-        fontFamily: "'Syne', sans-serif",
-        fontSize: 'clamp(32px, 5vw, 52px)',
-        fontWeight: 800,
+        fontFamily: "'Space Grotesk', sans-serif",
+        fontSize: 'clamp(30px, 5vw, 50px)',
+        fontWeight: 700,
         letterSpacing: '-0.03em',
-        lineHeight: 1.05,
+        lineHeight: 1.08,
         marginBottom: sub ? 14 : 0,
         color: 'var(--text-primary)',
       }}>{title}</h2>
@@ -505,7 +507,7 @@ export default function Home() {
             <div style={{ minWidth: 0, flex: 1 }}>
               <p style={{
                 fontSize: 14, fontWeight: 600,
-                fontFamily: "'Syne', sans-serif",
+                fontFamily: "'Space Grotesk', sans-serif",
                 color: 'var(--text-primary)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
@@ -519,7 +521,7 @@ export default function Home() {
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
                 background: badge.bg, color: badge.color,
-                fontFamily: "'Syne', sans-serif",
+                fontFamily: "'Space Grotesk', sans-serif",
                 letterSpacing: '0.06em',
                 ...(app.status === 'running' ? { boxShadow: `0 0 8px ${badge.color}55` } : {}),
               }}>{app.status}</span>
@@ -600,31 +602,23 @@ export default function Home() {
 
             {/* Hero */}
             <div style={{
-              fontSize: 'clamp(64px, 13vw, 128px)',
-              lineHeight: 0.95,
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: 'clamp(58px, 12vw, 118px)',
+              lineHeight: 0.96,
               letterSpacing: '-0.04em',
               marginBottom: 32,
               userSelect: 'none',
             }}>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, color: 'var(--text-primary)' }}>
+              <div style={{ color: 'var(--text-primary)' }}>
                 <CurtainWord word="Get" delay={0.25} />
                 {' '}
                 <CurtainWord word="A" delay={0.33} />
                 {' '}
                 <CurtainWord word="Job" delay={0.41} />
               </div>
-              <div>
-                <CurtainWord
-                  word="Faster."
-                  delay={0.52}
-                  style={{
-                    fontFamily: "'Fraunces', serif",
-                    fontStyle: 'italic',
-                    fontWeight: 800,
-                    color: 'var(--accent)',
-                    textShadow: '0 0 48px rgba(96,147,93,0.35)',
-                  }}
-                />
+              <div style={{ color: 'var(--accent)' }}>
+                <CurtainWord word="Faster." delay={0.52} />
               </div>
             </div>
 
@@ -700,7 +694,7 @@ export default function Home() {
                             fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
                             background: (STATUS_STYLE[appStatus] || STATUS_STYLE.pending).bg,
                             color: (STATUS_STYLE[appStatus] || STATUS_STYLE.pending).color,
-                            fontFamily: "'Syne', sans-serif",
+                            fontFamily: "'Space Grotesk', sans-serif",
                             letterSpacing: '0.06em',
                           }}>{appStatus}</span>
                         )}
@@ -728,14 +722,14 @@ export default function Home() {
               ].map((s, i) => (
                 <div key={s.label} style={{ textAlign: 'center' }}>
                   <div style={{
-                    fontSize: 44, fontWeight: 800, letterSpacing: '-0.04em',
-                    fontFamily: "'Syne', sans-serif",
+                    fontSize: 44, fontWeight: 700, letterSpacing: '-0.04em',
+                    fontFamily: "'Space Grotesk', sans-serif",
                     color: 'var(--text-primary)',
                     fontVariantNumeric: 'tabular-nums',
                     lineHeight: 1,
                     ...(i === 0 ? { color: 'var(--accent)', textShadow: '0 0 30px rgba(96,147,93,0.3)' } : {}),
                   }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif" }}>{s.label}</div>
                 </div>
               ))}
             </motion.div>
@@ -762,7 +756,7 @@ export default function Home() {
               {/* Resume */}
               <motion.div variants={fadeUp} style={{ marginBottom: 14 }}>
                 <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif", marginBottom: 14 }}>Resume</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif", marginBottom: 14 }}>Resume</p>
                   <input ref={resumeInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx" style={{ display: 'none' }}
                     onChange={e => { if (e.target.files?.[0]) uploadResume(e.target.files[0]); }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -787,7 +781,7 @@ export default function Home() {
               {/* Personal Info */}
               <motion.div variants={fadeUp} style={{ marginBottom: 14 }}>
                 <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif", marginBottom: 18 }}>Personal Info</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif", marginBottom: 18 }}>Personal Info</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {(['full_name', 'email', 'phone', 'location', 'linkedin', 'website'] as const).map(field => (
                       <div key={field}>
@@ -805,7 +799,7 @@ export default function Home() {
               {/* Free Context */}
               <motion.div variants={fadeUp} style={{ marginBottom: 14 }}>
                 <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif", marginBottom: 6 }}>Free Context</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif", marginBottom: 6 }}>Free Context</p>
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>Tell Claude anything — preferences, things to avoid, tone, constraints.</p>
                   <textarea
                     style={{ ...inputStyle, height: 112, resize: 'none' }}
@@ -844,7 +838,7 @@ export default function Home() {
                 <GlassCard padding="22px 28px">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                     <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif" }}>Reference Documents</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif" }}>Reference Documents</p>
                       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Cover letters, portfolios, certifications</p>
                     </div>
                     <input ref={docInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx" style={{ display: 'none' }}
@@ -877,7 +871,7 @@ export default function Home() {
               {/* Rules */}
               <motion.div variants={fadeUp}>
                 <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif", marginBottom: 4 }}>Answer Rules</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif", marginBottom: 4 }}>Answer Rules</p>
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18 }}>Override how Claude answers specific question types.</p>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                     <input style={{ ...inputStyle, flex: 1 }} placeholder='Keyword (e.g. "salary")'
@@ -904,7 +898,7 @@ export default function Home() {
                             fontSize: 10, fontWeight: 700, background: 'var(--accent-bg)',
                             color: 'var(--accent)', border: '1px solid var(--accent-border)',
                             padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap',
-                            fontFamily: "'Syne', sans-serif", letterSpacing: '0.04em',
+                            fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.04em',
                           }}>{rule.trigger_keyword}</span>
                           <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>→</span>
                           <span style={{ color: 'var(--text-secondary)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.response}</span>
@@ -947,7 +941,7 @@ export default function Home() {
               }}>
                 <span style={{ color: 'var(--amber)', fontSize: 14, marginTop: 1 }}>⚠</span>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amber)', fontFamily: "'Syne', sans-serif" }}>Gmail sync coming soon</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--amber)', fontFamily: "'Space Grotesk', sans-serif" }}>Gmail sync coming soon</p>
                   <p style={{ fontSize: 12, color: 'rgba(245,158,11,0.7)', marginTop: 2 }}>Connect Gmail to automatically pull job applications, status updates, and interview invites.</p>
                 </div>
               </motion.div>
@@ -979,7 +973,7 @@ export default function Home() {
                             background: 'var(--red-bg)',
                             color: 'var(--red)', cursor: 'pointer',
                             fontSize: 13, fontWeight: 700,
-                            fontFamily: "'Syne', sans-serif",
+                            fontFamily: "'Space Grotesk', sans-serif",
                             letterSpacing: '0.02em',
                             transition: 'background 0.2s',
                           }}
@@ -1030,7 +1024,7 @@ export default function Home() {
 
               <motion.div variants={fadeUp} style={{ marginBottom: 20 }}>
                 <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Syne', sans-serif", marginBottom: 14 }}>Add Account</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif", marginBottom: 14 }}>Add Account</p>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <input style={inputStyle} placeholder="Platform" value={newAccount.platform} onChange={e => setNewAccount(a => ({ ...a, platform: e.target.value }))} />
                     <input style={inputStyle} placeholder="Email" value={newAccount.email} onChange={e => setNewAccount(a => ({ ...a, email: e.target.value }))} />
@@ -1054,7 +1048,7 @@ export default function Home() {
                             background: 'var(--accent-bg)', color: 'var(--accent)',
                             border: '1px solid var(--accent-border)',
                             padding: '2px 8px', borderRadius: 6,
-                            fontFamily: "'Syne', sans-serif", letterSpacing: '0.06em',
+                            fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.06em',
                           }}>{acc.platform}</span>
                           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{acc.email}</span>
                         </div>
