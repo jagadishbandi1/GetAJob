@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, initDb } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const sql = getDb();
+  await initDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');
 
   if (id) {
-    const app = db.prepare('SELECT * FROM applications WHERE id = ?').get(id);
-    return NextResponse.json(app);
+    const [app] = await sql`SELECT * FROM applications WHERE id = ${id}`;
+    return NextResponse.json(app ?? null);
   }
 
-  const apps = db.prepare('SELECT * FROM applications ORDER BY applied_at DESC').all();
+  const apps = await sql`SELECT * FROM applications ORDER BY applied_at DESC`;
   return NextResponse.json(apps);
 }
 
 export async function DELETE(req: NextRequest) {
-  const db = getDb();
+  const sql = getDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  db.prepare('DELETE FROM applications WHERE id = ?').run(id);
+  await sql`DELETE FROM applications WHERE id = ${id}`;
   return NextResponse.json({ ok: true });
 }

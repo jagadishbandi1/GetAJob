@@ -1,39 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { runAutofiller } from '@/lib/autofiller';
+import { getDb, initDb } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
-  const db = getDb();
+  const sql = getDb();
+  await initDb();
   const { jobUrl } = await req.json();
 
-  if (!jobUrl) {
-    return NextResponse.json({ error: 'jobUrl is required' }, { status: 400 });
-  }
+  if (!jobUrl) return NextResponse.json({ error: 'jobUrl is required' }, { status: 400 });
 
-  const profile = db.prepare('SELECT * FROM profile WHERE id = 1').get() as Record<string, string>;
-  const contextRules = db.prepare('SELECT trigger_keyword, response FROM context_rules').all() as { trigger_keyword: string; response: string }[];
-  const accounts = db.prepare('SELECT platform, email, password FROM accounts').all() as { platform: string; email: string; password: string }[];
+  const [profile] = await sql`SELECT * FROM profile WHERE id = 1`;
+  const contextRules = await sql`SELECT trigger_keyword, response FROM context_rules`;
+  const accounts = await sql`SELECT platform, email, password FROM accounts`;
 
-  // Log to DB
-  const result = db.prepare(`
-    INSERT INTO applications (job_url, status) VALUES (?, 'running')
-  `).run(jobUrl);
-  const appId = result.lastInsertRowid;
+  const [row] = await sql`
+    INSERT INTO applications (job_url, status) VALUES (${jobUrl}, 'running') RETURNING id
+  `;
+  const appId = row.id;
 
   const logs: string[] = [];
-  const onLog = (msg: string) => {
+  const onLog = async (msg: string) => {
     logs.push(msg);
-    db.prepare('UPDATE applications SET log = ? WHERE id = ?').run(logs.join('\n'), appId);
+    await sql`UPDATE applications SET log=${logs.join('\n')} WHERE id=${appId}`;
   };
 
-  // Run in background, return immediately with app ID
-  runAutofiller({ jobUrl, appId, profile: profile as any, contextRules, accounts }, onLog)
-    .then(({ success }) => {
-      db.prepare('UPDATE applications SET status = ? WHERE id = ?').run(success ? 'done' : 'failed', appId);
-    })
-    .catch((err) => {
-      db.prepare('UPDATE applications SET status = ?, log = ? WHERE id = ?').run('failed', String(err), appId);
-    });
+  // Autofiller runs locally only — on cloud, flag as unsupported
+  if (process.env.NODE_ENV === 'production') {
+    await sql`UPDATE applications SET status='failed', log='Autofiller requires local installation. Download and run locally.' WHERE id=${appId}`;
+    return NextResponse.json({ appId });
+  }
+
+  const { runAutofiller } = await import('@/lib/autofiller');
+  runAutofiller(
+    { jobUrl, appId, profile: profile as any, contextRules: contextRules as any, accounts: accounts as any },
+    onLog
+  ).then(async ({ success }) => {
+    await sql`UPDATE applications SET status=${success ? 'done' : 'failed'} WHERE id=${appId}`;
+  }).catch(async (err) => {
+    await sql`UPDATE applications SET status='failed', log=${String(err)} WHERE id=${appId}`;
+  });
 
   return NextResponse.json({ appId });
 }

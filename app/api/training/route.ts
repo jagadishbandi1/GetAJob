@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, initDb } from '@/lib/db';
 
 export async function GET() {
-  const db = getDb();
-  const examples = db.prepare('SELECT * FROM training_examples ORDER BY created_at DESC').all();
+  const sql = getDb();
+  await initDb();
+  const examples = await sql`SELECT * FROM training_examples ORDER BY created_at DESC`;
   return NextResponse.json(examples);
 }
 
 export async function DELETE(req: NextRequest) {
-  const db = getDb();
+  const sql = getDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');
   if (id) {
-    db.prepare('DELETE FROM training_examples WHERE id = ?').run(id);
+    await sql`DELETE FROM training_examples WHERE id = ${id}`;
   } else {
-    db.prepare('DELETE FROM training_examples').run();
+    await sql`DELETE FROM training_examples`;
   }
   return NextResponse.json({ ok: true });
 }
