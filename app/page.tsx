@@ -637,10 +637,7 @@ export default function Home() {
               transition={{ duration: 0.6, delay: 0.85 }}
               style={{ fontSize: 16, color: 'var(--text-muted)', maxWidth: 500, lineHeight: 1.75, marginBottom: 52 }}
             >
-              — so I built this instead.{' '}
-              <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                If you&apos;re a recruiter: there&apos;s a solid chance the application that reached you came from this exact software. Respect the hustle.
-              </span>
+              — so I built this instead.
             </motion.p>
 
             {/* Input row */}
