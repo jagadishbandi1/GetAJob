@@ -51,7 +51,7 @@ html, body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: 'Space Grotesk', system-ui, sans-serif;
-  height: 100%;
+  min-height: 100%;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

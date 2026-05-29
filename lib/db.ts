@@ -70,6 +70,10 @@ export async function initDb() {
       created_at TEXT DEFAULT (now()::text)
     )
   `;
+  // Add Gmail columns if not present (idempotent migration)
+  await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS gmail_token TEXT`;
+  await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT`;
+
   // Seed empty profile if none exists
   const rows = await sql`SELECT id FROM profile WHERE id = 1`;
   if (rows.length === 0) {

@@ -19,10 +19,20 @@ export async function POST(req: NextRequest) {
   const fileExt = fileName.split('.').pop()?.toLowerCase();
 
   let content = '';
-  if (fileExt === 'txt' || fileExt === 'md') {
+
+  if (fileExt === 'pdf') {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfMod = await import('pdf-parse') as any;
+      const pdfParse = pdfMod.default ?? pdfMod;
+      const data = await pdfParse(buffer);
+      content = data.text?.trim() || '';
+      if (!content) throw new Error('Empty PDF');
+    } catch {
+      content = `[PDF: ${fileName}] — Could not extract text. Try saving as .txt for best results.`;
+    }
+  } else if (fileExt === 'txt' || fileExt === 'md') {
     content = buffer.toString('utf-8');
-  } else if (fileExt === 'pdf') {
-    content = `[PDF: ${fileName}] — PDF text extraction not yet available. Upload a .txt version for best results.`;
   } else {
     content = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, '').trim();
   }
@@ -30,7 +40,6 @@ export async function POST(req: NextRequest) {
   if (type === 'resume') {
     await sql`UPDATE profile SET resume_text=${content}, resume_file_name=${fileName} WHERE id=1`;
 
-    // Use Claude to extract profile fields
     try {
       const response = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
@@ -56,9 +65,7 @@ export async function POST(req: NextRequest) {
           }
         }
       }
-    } catch {
-      // Parsing failed — upload still succeeds
-    }
+    } catch { /* profile extraction failed — upload still succeeds */ }
 
     return NextResponse.json({ ok: true, fileName, preview: content.slice(0, 200) });
   }
