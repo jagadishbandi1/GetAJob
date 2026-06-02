@@ -34,17 +34,17 @@ export default function HeroSection({
   onGoToKnowledge: () => void;
 }) {
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 pb-20 pt-28 text-center">
+    <section className="relative flex min-h-screen flex-col items-center overflow-hidden px-5 pb-24 pt-[20vh] text-center">
       <GeometricBg />
       <div className="relative z-10 flex w-full max-w-5xl flex-col items-center">
         <ScrollReveal>
-          <h1 className="text-[clamp(4rem,12vw,9rem)] leading-[0.9] text-text-primary">
+          <h1 className="pb-2 text-[clamp(3.25rem,10vw,7.5rem)] leading-[1.05] text-text-primary">
             get a job <span className="italic text-accent">faster.</span>
           </h1>
         </ScrollReveal>
 
         <ScrollReveal delay={100}>
-          <p className="mt-6 max-w-xl text-sm leading-7 text-text-secondary sm:text-base">
+          <p className="mt-5 max-w-md text-sm leading-7 text-text-secondary sm:text-base">
             i was bored of copy-pasting my resume into the same 47 fields on every job site, so i built this instead.
           </p>
         </ScrollReveal>
@@ -61,7 +61,7 @@ export default function HeroSection({
           )}
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
-              className="min-h-12 flex-1 rounded-2xl border border-border-base bg-bg-surface px-5 text-sm text-text-primary outline-none transition focus:border-accent"
+              className="h-12 flex-1 rounded-2xl border border-border-base bg-bg-surface px-5 text-sm text-text-primary outline-none transition focus:border-accent"
               placeholder="paste a job url"
               value={jobUrl}
               onChange={(event) => setJobUrl(event.target.value)}
@@ -69,14 +69,14 @@ export default function HeroSection({
                 if (event.key === "Enter" && !applying) onApply();
               }}
             />
-            <MagneticWrapper>
+            <MagneticWrapper className="shrink-0">
               <button
                 type="button"
                 onClick={onApply}
                 disabled={applying || !jobUrl.trim()}
-                className="min-h-12 rounded-2xl bg-accent px-7 text-sm font-semibold text-bg transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-12 whitespace-nowrap rounded-2xl bg-accent px-8 text-sm font-semibold text-bg transition hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {applying ? "running" : "apply now"}
+                {applying ? "running…" : "apply now"}
               </button>
             </MagneticWrapper>
           </div>

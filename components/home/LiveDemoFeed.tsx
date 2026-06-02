@@ -26,7 +26,7 @@ export default function LiveDemoFeed({
       </div>
       <div className="max-h-56 overflow-y-auto font-mono text-xs leading-6 text-text-secondary">
         {lines.length === 0 ? (
-          <p className="text-text-muted">paste a url above to start.</p>
+          <p className="text-text-secondary/70">paste a url above to start.</p>
         ) : (
           lines.map((line, index) => (
             <p key={`${line}-${index}`} className="animate-[feed-pulse_0.2s_ease]">

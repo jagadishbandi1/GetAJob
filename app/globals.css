@@ -50,12 +50,13 @@
   --font-mono: var(--font-mono);
 }
 
-/* ── Reset ─────────────────────────────────────── */
+/* ── Reset ─────────────────────────────────────────
+   NOTE: do NOT add `margin: 0; padding: 0` here. This rule is unlayered,
+   so it would override every Tailwind margin/padding utility (which live in
+   @layer utilities) app-wide. Tailwind Preflight already handles base resets. */
 *, *::before, *::after {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  margin: 0;
-  padding: 0;
 }
 
 html, body {
