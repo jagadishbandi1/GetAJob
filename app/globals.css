@@ -1,42 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  /* ── Dark base (neutral, not green-tinted) ─── */
-  --bg: #08090d;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-elevated: rgba(255, 255, 255, 0.07);
-  --bg-input: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.09);
-  --border-subtle: rgba(255, 255, 255, 0.05);
+  /* ── Sage monochrome base ──────────────────── */
+  --bg: #0a0a0a;
+  --bg-surface: #141414;
+  --bg-elevated: #1a1a1a;
+  --bg-input: #141414;
+  --border: #1f2a1f;
+  --border-hover: #2d3a2e;
 
   /* ── Text ──────────────────────────────────── */
-  --text-primary: #f0f0f2;
-  --text-secondary: #8a8a9a;
-  --text-muted: #4a4a5a;
+  --text-primary: #c8dcc8;
+  --text-secondary: #8aad8c;
+  --text-muted: #2d3a2e;
 
-  /* ── Accent green ──────────────────────────── */
-  --accent: #60935D;
-  --accent-bright: #7aad77;
-  --accent-dim: #4a7347;
-  --accent-bg: rgba(96, 147, 93, 0.12);
-  --accent-border: rgba(96, 147, 93, 0.28);
-  --accent-glow: rgba(96, 147, 93, 0.15);
+  /* ── Sage accent ───────────────────────────── */
+  --accent: #6b8f6b;
+  --accent-light: #8aad8c;
+  --accent-dim: #2d3a2e;
+  --accent-glow: rgba(107, 143, 107, 0.18);
 
-  /* ── Semantic ──────────────────────────────── */
-  --amber: #f59e0b;
-  --amber-bg: rgba(245, 158, 11, 0.08);
-  --amber-border: rgba(245, 158, 11, 0.18);
-  --red: #f87171;
-  --red-bg: rgba(239, 68, 68, 0.08);
-  --red-border: rgba(239, 68, 68, 0.18);
+  /* ── Status (running / done / failed) ──────── */
+  --amber: #c9a24b;
+  --amber-bg: rgba(201, 162, 75, 0.1);
+  --amber-border: rgba(201, 162, 75, 0.22);
+  --red: #c96b6b;
+  --red-bg: rgba(201, 107, 107, 0.1);
+  --red-border: rgba(201, 107, 107, 0.22);
+
+  /* ── Fonts (set by next/font in layout.tsx) ── */
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* --font-serif is provided by next/font (Source Serif 4) */
 }
 
+/* ── Tailwind theme tokens (consumed by components) ── */
 @theme inline {
   --color-bg: var(--bg);
-  --color-accent: var(--accent);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-border-base: var(--border);
+  --color-border-hover: var(--border-hover);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-accent-dim: var(--accent-dim);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
 
 /* ── Reset ─────────────────────────────────────── */
@@ -50,23 +61,32 @@
 html, body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   min-height: 100%;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Glass card ─────────────────────────────────── */
+/* Serif headlines */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+}
+
+/* Custom cursor: hide native pointer on fine-pointer devices.
+   CustomCursor.tsx renders the sage dot + trailing ring. */
+@media (pointer: fine) {
+  html, body { cursor: none; }
+}
+
+/* ── Card (resaged shim; Codex replaces with Tailwind + HoverGlow) ── */
 .glass {
-  background: var(--bg-card);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  border-radius: 18px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 20px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
   position: relative;
   overflow: hidden;
   transition: border-color 0.25s ease;
@@ -90,23 +110,18 @@ html, body {
 
 .glass > * { position: relative; z-index: 1; }
 
-.glass:hover {
-  border-color: rgba(255, 255, 255, 0.13);
-}
+.glass:hover { border-color: var(--border-hover); }
+.glass:hover::after { opacity: 1; }
 
-.glass:hover::after {
-  opacity: 1;
-}
-
-/* ── Eyebrow label ──────────────────────────────── */
+/* ── Eyebrow label (resaged shim) ──────────────── */
 .eyebrow {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
@@ -129,7 +144,7 @@ input, textarea, select {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 14px;
-  font-family: 'Space Grotesk', inherit;
+  font-family: var(--font-mono);
   font-size: 14px;
   outline: none;
   width: 100%;
@@ -138,16 +153,11 @@ input, textarea, select {
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-bg);
+  box-shadow: 0 0 0 3px rgba(107, 143, 107, 0.15);
 }
 
-input::placeholder, textarea::placeholder {
-  color: var(--text-muted);
-}
-
-select option {
-  background: #12141a;
-}
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+select option { background: var(--bg-surface); }
 
 /* ── Scrollbar ───────────────────────────────────── */
 .scrollbar-hide {
@@ -159,6 +169,21 @@ select option {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-hover);
   border-radius: 2px;
+}
+
+/* ── Effect keyframes ────────────────────────────── */
+@keyframes grain-shift {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-3%, -4%); }
+  30% { transform: translate(2%, -2%); }
+  50% { transform: translate(-2%, 3%); }
+  70% { transform: translate(3%, 2%); }
+  90% { transform: translate(-1%, 1%); }
+}
+
+@keyframes feed-pulse {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
 }

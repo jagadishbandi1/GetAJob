@@ -6,8 +6,7 @@ export async function GET() {
   await initDb();
   const [profile] = await sql`SELECT * FROM profile WHERE id = 1`;
   const rules = await sql`SELECT * FROM context_rules ORDER BY created_at DESC`;
-  const accounts = await sql`SELECT id, platform, email, created_at FROM accounts`;
-  return NextResponse.json({ profile, rules, accounts });
+  return NextResponse.json({ profile, rules });
 }
 
 export async function POST(req: NextRequest) {
@@ -35,12 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  if (type === 'account') {
-    const { platform, email, password } = body;
-    await sql`INSERT INTO accounts (platform, email, password) VALUES (${platform}, ${email}, ${password})`;
-    return NextResponse.json({ ok: true });
-  }
-
   return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
 }
 
@@ -52,10 +45,6 @@ export async function DELETE(req: NextRequest) {
 
   if (type === 'rule' && id) {
     await sql`DELETE FROM context_rules WHERE id = ${id}`;
-    return NextResponse.json({ ok: true });
-  }
-  if (type === 'account' && id) {
-    await sql`DELETE FROM accounts WHERE id = ${id}`;
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: 'Unknown type' }, { status: 400 });

@@ -4,6 +4,41 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic();
 
+interface GmailProfile {
+  gmail_token?: string;
+  gmail_refresh_token?: string;
+}
+
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+interface GmailMessageSummary {
+  id: string;
+}
+
+interface GmailListResponse {
+  messages?: GmailMessageSummary[];
+}
+
+interface GmailMessageResponse {
+  payload?: { headers?: GmailHeader[] };
+  snippet?: string;
+}
+
+interface ExtractedApplicationEmail {
+  is_job_related?: boolean;
+  company?: string;
+  job_title?: string;
+  status?: string;
+  job_url?: string;
+}
+
+interface ExistingApplication {
+  id: number;
+}
+
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -23,7 +58,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 
 export async function POST() {
   const sql = getDb();
-  const [profile] = await sql`SELECT gmail_token, gmail_refresh_token FROM profile WHERE id = 1` as any[];
+  const [profile] = await sql`SELECT gmail_token, gmail_refresh_token FROM profile WHERE id = 1` as GmailProfile[];
 
   if (!profile?.gmail_token) {
     return NextResponse.json({ error: 'Gmail not connected' }, { status: 401 });
@@ -54,7 +89,7 @@ export async function POST() {
     }
   }
 
-  const listData = await listRes.json();
+  const listData = await listRes.json() as GmailListResponse;
   const messages = listData.messages || [];
   let synced = 0;
 
@@ -64,12 +99,12 @@ export async function POST() {
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const msgData = await msgRes.json();
+      const msgData = await msgRes.json() as GmailMessageResponse;
 
       // Extract subject and snippet
       const headers = msgData.payload?.headers || [];
-      const subject = headers.find((h: any) => h.name === 'Subject')?.value || '';
-      const from = headers.find((h: any) => h.name === 'From')?.value || '';
+      const subject = headers.find((h) => h.name === 'Subject')?.value || '';
+      const from = headers.find((h) => h.name === 'From')?.value || '';
       const snippet = msgData.snippet || '';
 
       // Use Claude to classify and extract
@@ -96,7 +131,7 @@ Body: ${snippet}`,
       const match = raw.match(/\{[\s\S]*\}/);
       if (!match) continue;
 
-      const info = JSON.parse(match[0]);
+      const info = JSON.parse(match[0]) as ExtractedApplicationEmail;
       if (!info.is_job_related || !info.company) continue;
 
       // Check if we already have this application
@@ -104,7 +139,7 @@ Body: ${snippet}`,
         SELECT id FROM applications WHERE company = ${info.company}
         AND (job_title = ${info.job_title} OR job_title = '')
         LIMIT 1
-      ` as any[];
+      ` as ExistingApplication[];
 
       if (existing.length > 0 && info.status) {
         await sql`UPDATE applications SET status = ${info.status} WHERE id = ${existing[0].id}`;
@@ -124,6 +159,6 @@ Body: ${snippet}`,
 // Check connection status
 export async function GET() {
   const sql = getDb();
-  const [profile] = await sql`SELECT gmail_token FROM profile WHERE id = 1` as any[];
+  const [profile] = await sql`SELECT gmail_token FROM profile WHERE id = 1` as GmailProfile[];
   return NextResponse.json({ connected: !!profile?.gmail_token });
 }

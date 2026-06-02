@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import type { ContextRule, Profile } from '@/lib/autofiller';
 
 export async function POST(req: NextRequest) {
   const sql = getDb();
@@ -10,7 +11,6 @@ export async function POST(req: NextRequest) {
 
   const [profile] = await sql`SELECT * FROM profile WHERE id = 1`;
   const contextRules = await sql`SELECT trigger_keyword, response FROM context_rules`;
-  const accounts = await sql`SELECT platform, email, password FROM accounts`;
 
   const [row] = await sql`
     INSERT INTO applications (job_url, status) VALUES (${jobUrl}, 'running') RETURNING id
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const { runAutofiller } = await import('@/lib/autofiller');
   runAutofiller(
-    { jobUrl, appId, profile: profile as any, contextRules: contextRules as any, accounts: accounts as any },
+    { jobUrl, appId, profile: profile as Profile, contextRules: contextRules as ContextRule[] },
     onLog
   ).then(async ({ success }) => {
     await sql`UPDATE applications SET status=${success ? 'done' : 'failed'} WHERE id=${appId}`;

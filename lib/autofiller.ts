@@ -20,7 +20,6 @@ export interface AutofillJob {
   appId: number | bigint;
   profile: Profile;
   contextRules: ContextRule[];
-  accounts: { platform: string; email: string; password: string }[];
 }
 
 export async function runAutofiller(job: AutofillJob, onLog: (msg: string) => Promise<void> | void) {

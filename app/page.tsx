@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface Rule { id: number; trigger_keyword: string; response: string }
-interface Account { id: number; platform: string; email: string }
 interface Application {
   id: number; job_url: string; company: string; job_title: string;
   location: string; compensation: string; status: string; log: string;
@@ -152,7 +151,7 @@ const inputStyle: React.CSSProperties = {
 
 /* ─────────────────────────────────────────────────────── */
 export default function Home() {
-  const [section, setSection] = useState<'home' | 'tracker' | 'knowledge' | 'training' | 'accounts'>('home');
+  const [section, setSection] = useState<'home' | 'tracker' | 'knowledge' | 'training'>('home');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -170,9 +169,6 @@ export default function Home() {
 
   const [rules, setRules] = useState<Rule[]>([]);
   const [newRule, setNewRule] = useState({ trigger_keyword: '', response: '' });
-
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [newAccount, setNewAccount] = useState({ platform: '', email: '', password: '' });
 
   const [applications, setApplications] = useState<Application[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
@@ -196,7 +192,6 @@ export default function Home() {
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchAll = useCallback(async () => {
     await Promise.all([fetchProfile(), fetchApplications(), fetchTraining(), fetchDocuments(), fetchHealth()]);
   }, []);
@@ -254,7 +249,6 @@ export default function Home() {
       setGmailConnected(!!d.profile.gmail_token);
     }
     setRules(d.rules || []);
-    setAccounts(d.accounts || []);
   }
 
   async function fetchApplications() {
@@ -337,19 +331,6 @@ export default function Home() {
     await fetch(`/api/profile?type=rule&id=${id}`, { method: 'DELETE' }); fetchProfile();
   }
 
-  async function addAccount() {
-    if (!newAccount.platform || !newAccount.email || !newAccount.password) return;
-    await fetch('/api/profile', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'account', ...newAccount }),
-    });
-    setNewAccount({ platform: '', email: '', password: '' }); fetchProfile();
-  }
-
-  async function deleteAccount(id: number) {
-    await fetch(`/api/profile?type=account&id=${id}`, { method: 'DELETE' }); fetchProfile();
-  }
-
   async function deleteApplication(id: number) {
     await fetch(`/api/applications?id=${id}`, { method: 'DELETE' });
     fetchApplications();
@@ -396,7 +377,6 @@ export default function Home() {
 
   const drawerItems = [
     { key: 'tracker'  as const, label: 'Tracker',  icon: '◉' },
-    { key: 'accounts' as const, label: 'Accounts', icon: '⬡' },
     { key: 'training' as const, label: 'Training', icon: '◈' },
   ];
 
@@ -1078,45 +1058,6 @@ export default function Home() {
                   </>
                 );
               })()}
-            </motion.div>
-          </motion.section>
-        )}
-
-        {/* ── ACCOUNTS ──────────────────────────────────── */}
-        {section === 'accounts' && (
-          <motion.section key="accounts"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.45 }}
-            style={{ position: 'relative', zIndex: 1, padding: '104px 24px 96px', maxWidth: 660, margin: '0 auto' }}
-          >
-            <motion.div initial="hidden" animate="visible" variants={stagger}>
-              <SectionHeader eyebrow="Credentials" title="Platform Accounts" sub="Saved credentials the autofiller uses to log in automatically." />
-              <motion.div variants={fadeUp} style={{ marginBottom: 20 }}>
-                <GlassCard padding="22px 28px">
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 14 }}>Add Account</p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <input style={inputStyle} placeholder="Platform (e.g. LinkedIn)" value={newAccount.platform} onChange={e => setNewAccount(a => ({ ...a, platform: e.target.value }))} />
-                    <input style={inputStyle} placeholder="Email" value={newAccount.email} onChange={e => setNewAccount(a => ({ ...a, email: e.target.value }))} />
-                    <input type="password" style={inputStyle} placeholder="Password" value={newAccount.password} onChange={e => setNewAccount(a => ({ ...a, password: e.target.value }))} />
-                    <button onClick={addAccount} style={{ ...btnPrimary, borderRadius: 12, padding: '10px 20px' }}>Add</button>
-                  </div>
-                </GlassCard>
-              </motion.div>
-              <AnimatePresence>
-                {accounts.map(acc => (
-                  <motion.div key={acc.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 16 }} style={{ marginBottom: 10 }}>
-                    <GlassCard padding="14px 20px">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', padding: '2px 8px', borderRadius: 6, letterSpacing: '0.06em' }}>{acc.platform}</span>
-                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{acc.email}</span>
-                        </div>
-                        <button onClick={() => deleteAccount(acc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12 }}>remove</button>
-                      </div>
-                    </GlassCard>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
             </motion.div>
           </motion.section>
         )}

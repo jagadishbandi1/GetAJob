@@ -30,15 +30,6 @@ export async function initDb() {
     )
   `;
   await sql`
-    CREATE TABLE IF NOT EXISTS accounts (
-      id SERIAL PRIMARY KEY,
-      platform TEXT NOT NULL,
-      email TEXT NOT NULL,
-      password TEXT NOT NULL,
-      created_at TEXT DEFAULT (now()::text)
-    )
-  `;
-  await sql`
     CREATE TABLE IF NOT EXISTS applications (
       id SERIAL PRIMARY KEY,
       job_url TEXT NOT NULL,
