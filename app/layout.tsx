@@ -5,6 +5,8 @@ import "./globals.css";
 import CustomCursor from "@/components/effects/CustomCursor";
 import GrainOverlay from "@/components/effects/GrainOverlay";
 import ScrollProgress from "@/components/effects/ScrollProgress";
+import { AppProvider } from "@/components/AppProvider";
+import Navbar from "@/components/layout/Navbar";
 
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
@@ -27,10 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sourceSerif.variable} ${GeistMono.variable}`}>
       <body>
-        <ScrollProgress />
-        <GrainOverlay />
-        <CustomCursor />
-        {children}
+        <AppProvider>
+          <ScrollProgress />
+          <GrainOverlay />
+          <CustomCursor />
+          <Navbar />
+          {children}
+        </AppProvider>
       </body>
     </html>
   );
