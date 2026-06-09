@@ -105,7 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (d) {
         setAppLog(d.log || "");
         setAppStatus(d.status || "");
-        if (d.status === "done" || d.status === "failed") {
+        if (d.status === "done" || d.status === "failed" || d.status === "demo") {
           clearInterval(iv);
           setApplying(false);
           fetchApplications();

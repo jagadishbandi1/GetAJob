@@ -8,7 +8,7 @@ export async function initDb() {
   const sql = getDb();
   await sql`
     CREATE TABLE IF NOT EXISTS profile (
-      id INTEGER PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
       full_name TEXT,
       email TEXT,
       phone TEXT,

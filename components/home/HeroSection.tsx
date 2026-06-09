@@ -76,6 +76,17 @@ export default function HeroSection({
               </button>
             </MagneticWrapper>
           </div>
+          <p className="mt-3 text-left font-mono text-[11px] text-text-muted">
+            this is a demo. install locally to autofill for real.{" "}
+            <a
+              href="https://github.com/jagadishbandi1/GetAJob"
+              target="_blank"
+              rel="noreferrer"
+              className="underline transition hover:text-accent"
+            >
+              github -&gt;
+            </a>
+          </p>
           <LiveDemoFeed status={appStatus} log={appLog} />
           <RecentApplications />
         </ScrollReveal>

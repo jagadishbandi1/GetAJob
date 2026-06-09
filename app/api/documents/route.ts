@@ -5,7 +5,7 @@ export async function GET() {
   const sql = getDb();
   await initDb();
   const docs = await sql`
-    SELECT id, name, file_type, created_at, substr(content, 1, 100) as preview
+    SELECT id, name, file_type, created_at, left(content, 100) as preview
     FROM documents ORDER BY created_at DESC
   `;
   return NextResponse.json(docs);

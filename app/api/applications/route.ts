@@ -10,8 +10,9 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id');
 
   if (id) {
-    const [app] = await sql`SELECT * FROM applications WHERE id = ${id}`;
-    return NextResponse.json(app ?? null);
+    const rows = await sql`SELECT * FROM applications WHERE id = ${id}`;
+    const app = rows[0] ?? null;
+    return NextResponse.json(app);
   }
 
   const apps = await sql`SELECT * FROM applications ORDER BY applied_at DESC`;
@@ -28,11 +29,13 @@ export async function POST(req: NextRequest) {
   if (!job_url) return NextResponse.json({ error: 'job_url is required' }, { status: 400 });
   const safeStatus = VALID_STATUSES.includes(status) ? status : 'done';
 
-  const [row] = await sql`
+  const rows = await sql`
     INSERT INTO applications (job_url, company, job_title, location, compensation, status, source, log)
     VALUES (${job_url}, ${company || ''}, ${job_title || ''}, ${location || ''}, ${compensation || ''}, ${safeStatus}, 'manual', 'Added manually.')
     RETURNING id
   `;
+  const row = rows[0] ?? null;
+  if (!row) return NextResponse.json({ error: 'Insert failed' }, { status: 500 });
   return NextResponse.json({ ok: true, id: row.id });
 }
 

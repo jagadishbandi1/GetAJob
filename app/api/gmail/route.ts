@@ -58,9 +58,10 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 
 export async function POST() {
   const sql = getDb();
-  const [profile] = await sql`SELECT gmail_token, gmail_refresh_token FROM profile WHERE id = 1` as GmailProfile[];
+  const rows = await sql`SELECT gmail_token, gmail_refresh_token FROM profile WHERE id = 1`;
+  const profile = rows[0] as GmailProfile | undefined;
 
-  if (!profile?.gmail_token) {
+  if (!profile || !profile.gmail_token) {
     return NextResponse.json({ error: 'Gmail not connected' }, { status: 401 });
   }
 
@@ -159,6 +160,7 @@ Body: ${snippet}`,
 // Check connection status
 export async function GET() {
   const sql = getDb();
-  const [profile] = await sql`SELECT gmail_token FROM profile WHERE id = 1` as GmailProfile[];
+  const rows = await sql`SELECT gmail_token FROM profile WHERE id = 1`;
+  const profile = rows[0] as GmailProfile | undefined;
   return NextResponse.json({ connected: !!profile?.gmail_token });
 }

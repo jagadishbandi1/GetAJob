@@ -8,6 +8,7 @@ const labels: Record<string, string> = {
   done: "done",
   failed: "failed",
   pending: "pending",
+  demo: "demo",
 };
 
 // label + value pairs for the idle demo. value is rendered in accent (sage),
@@ -91,7 +92,8 @@ export default function LiveDemoFeed({
   log: string;
 }) {
   const lines = log ? log.split("\n").filter(Boolean) : [];
-  const isIdle = lines.length === 0 && status !== "running" && status !== "done" && status !== "failed";
+  const isTerminal = status === "running" || status === "done" || status === "failed" || status === "demo";
+  const isIdle = lines.length === 0 && !isTerminal;
 
   return (
     <HoverGlow className="mt-4 p-4 text-left">
