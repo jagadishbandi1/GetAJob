@@ -13,8 +13,6 @@ export default function Home() {
     appStatus,
     appLog,
     profileWarning,
-    health,
-    gmailConnected,
     applications,
     documents,
     training,
@@ -29,8 +27,6 @@ export default function Home() {
       appStatus={appStatus}
       appLog={appLog}
       profileWarning={profileWarning}
-      health={health}
-      gmailConnected={gmailConnected}
       stats={{ applications: applications.length, documents: documents.length, training: training.length }}
       onApply={handleApply}
       onGoToKnowledge={() => router.push("/knowledge")}

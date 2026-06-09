@@ -3,9 +3,9 @@
 import GeometricBg from "@/components/effects/GeometricBg";
 import MagneticWrapper from "@/components/effects/MagneticWrapper";
 import ScrollReveal from "@/components/effects/ScrollReveal";
-import type { Health } from "@/hooks/types";
 import HowItWorks from "./HowItWorks";
 import LiveDemoFeed from "./LiveDemoFeed";
+import RecentApplications from "./RecentApplications";
 import StatsRow from "./StatsRow";
 
 export default function HeroSection({
@@ -15,8 +15,6 @@ export default function HeroSection({
   appStatus,
   appLog,
   profileWarning,
-  health,
-  gmailConnected,
   stats,
   onApply,
   onGoToKnowledge,
@@ -27,8 +25,6 @@ export default function HeroSection({
   appStatus: string;
   appLog: string;
   profileWarning: boolean;
-  health: Health | null;
-  gmailConnected: boolean;
   stats: { applications: number; documents: number; training: number };
   onApply: () => void;
   onGoToKnowledge: () => void;
@@ -81,36 +77,13 @@ export default function HeroSection({
             </MagneticWrapper>
           </div>
           <LiveDemoFeed status={appStatus} log={appLog} />
+          <RecentApplications />
         </ScrollReveal>
 
-        <SystemStatus health={health} gmailConnected={gmailConnected} />
         <StatsRow {...stats} />
         {stats.applications === 0 && <HowItWorks />}
       </div>
     </section>
-  );
-}
-
-function SystemStatus({ health, gmailConnected }: { health: Health | null; gmailConnected: boolean }) {
-  if (!health) return null;
-  const items = [
-    ["claude", health.ai],
-    ["database", health.database],
-    ["playwright", health.playwright],
-    ["gmail", health.gmail || gmailConnected],
-  ] as const;
-
-  return (
-    <ScrollReveal delay={260} className="mt-10 flex flex-wrap justify-center gap-5">
-      {items.map(([label, active]) => (
-        <div key={label} className="flex items-center gap-2">
-          <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-accent" : "bg-border-hover"}`} />
-          <span className={`text-[11px] uppercase tracking-[0.14em] ${active ? "text-text-secondary" : "text-text-muted"}`}>
-            {label}
-          </span>
-        </div>
-      ))}
-    </ScrollReveal>
   );
 }
 
