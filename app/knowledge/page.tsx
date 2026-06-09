@@ -9,6 +9,8 @@ export default function Knowledge() {
     setProfile,
     rules,
     documents,
+    training,
+    loadingTraining,
     savingProfile,
     profileSaved,
     resumeUploading,
@@ -19,6 +21,7 @@ export default function Knowledge() {
     deleteDocument,
     addRule,
     deleteRule,
+    deleteTraining,
   } = useApp();
 
   return (
@@ -27,6 +30,8 @@ export default function Knowledge() {
       setProfile={setProfile}
       rules={rules}
       documents={documents}
+      training={training}
+      loadingTraining={loadingTraining}
       savingProfile={savingProfile}
       profileSaved={profileSaved}
       resumeUploading={resumeUploading}
@@ -37,6 +42,7 @@ export default function Knowledge() {
       onDeleteDocument={deleteDocument}
       onAddRule={addRule}
       onDeleteRule={deleteRule}
+      onDeleteTraining={deleteTraining}
     />
   );
 }
