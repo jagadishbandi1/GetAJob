@@ -18,8 +18,8 @@ export default function GrainOverlay() {
       style={{
         backgroundImage: `url("${NOISE}")`,
         backgroundRepeat: "repeat",
-        opacity: 0.06,
-        mixBlendMode: "soft-light",
+        opacity: 0.35,
+        mixBlendMode: "overlay",
         animation: "grain-shift 8s steps(6) infinite",
       }}
     />
