@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-:root {
-  /* ── Sage monochrome base ──────────────────── */
+:root,
+[data-theme="dark"] {
+  /* ── Sage monochrome base (dark) ───────────── */
   --bg: #0a0a0a;
   --bg-surface: #141414;
   --bg-elevated: #1a1a1a;
@@ -19,8 +20,29 @@
   --accent-light: #8aad8c;
   --accent-dim: #2d3a2e;
   --accent-glow: rgba(107, 143, 107, 0.18);
+}
 
-  /* ── Status (running / done / failed) ──────── */
+/* ── Inverted sage (light) ─────────────────────── */
+[data-theme="light"] {
+  --bg: #f5f2ed;
+  --bg-surface: #ebe8e2;
+  --bg-elevated: #e0ddd7;
+  --bg-input: #ebe8e2;
+  --border: #c8d4c8;
+  --border-hover: #a8b8a8;
+
+  --text-primary: #1a2a1a;
+  --text-secondary: #4a5a4a;
+  --text-muted: #8a9a8a;
+
+  --accent: #4a7a4a;
+  --accent-light: #5a8a5a;
+  --accent-dim: #c8d4c8;
+  --accent-glow: rgba(74, 122, 74, 0.18);
+}
+
+:root {
+  /* ── Status (running / done / failed) — shared ─ */
   --amber: #c9a24b;
   --amber-bg: rgba(201, 162, 75, 0.1);
   --amber-border: rgba(201, 162, 75, 0.22);
@@ -32,6 +54,14 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   /* --font-serif is provided by next/font (Source Serif 4) */
 }
+
+/* ── Theme toggle icon visibility (FOUC-safe, CSS-driven off <html>) ──
+   Both icons render; the current theme's attribute hides the wrong one, so
+   there is no hydration mismatch and no flash. */
+:root .theme-icon-sun { display: none; }
+:root .theme-icon-moon { display: inline-block; }
+[data-theme="light"] .theme-icon-sun { display: inline-block; }
+[data-theme="light"] .theme-icon-moon { display: none; }
 
 /* ── Tailwind theme tokens (consumed by components) ── */
 @theme inline {

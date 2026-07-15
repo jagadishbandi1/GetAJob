@@ -8,7 +8,6 @@ import MagneticWrapper from "@/components/effects/MagneticWrapper";
 const navItems: { href: string; label: string }[] = [
   { href: "/", label: "home" },
   { href: "/knowledge", label: "knowledge" },
-  { href: "/about", label: "about" },
 ];
 
 export default function Navbar() {

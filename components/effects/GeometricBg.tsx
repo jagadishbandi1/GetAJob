@@ -30,7 +30,7 @@ export default function GeometricBg() {
       preserveAspectRatio="xMidYMid slice"
       viewBox="0 0 1200 800"
     >
-      <g stroke="var(--border)" strokeWidth="1" fill="none">
+      <g stroke="var(--border-hover)" strokeWidth="1" fill="none">
         <circle cx="950" cy="180" r="140" />
         <circle cx="950" cy="180" r="90" />
         <polygon points="180,620 360,620 270,460" />
