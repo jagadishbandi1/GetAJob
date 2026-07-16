@@ -7,29 +7,60 @@ import type { Profile } from "@/hooks/types";
 
 const ACCEPT = ".pdf,.txt,.md,.doc,.docx";
 
-// fields revealed one-by-one after a resume is parsed. each maps to a real
-// profile value populated by the /api/upload flow. "experience" surfaces a
-// trimmed slice of the extracted resume_text — no placeholder values.
-type RevealKey = "full_name" | "email" | "phone" | "location" | "linkedin" | "website" | "experience";
+// structured fields returned by POST /api/parse-resume
+interface ParsedResume {
+  full_name: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  website: string;
+  skills: string;
+  experience_summary: string;
+}
 
-const REVEAL_ORDER: { key: RevealKey; label: string }[] = [
+const EMPTY_PARSED: ParsedResume = {
+  full_name: "",
+  email: "",
+  phone: "",
+  location: "",
+  linkedin: "",
+  website: "",
+  skills: "",
+  experience_summary: "",
+};
+
+// contact keys map 1:1 onto the profile; skills + experience_summary have no
+// dedicated profile columns so they are folded into free_context on save.
+const CONTACT_KEYS = ["full_name", "email", "phone", "location", "linkedin", "website"] as const;
+type ContactKey = (typeof CONTACT_KEYS)[number];
+type RevealKey = ContactKey | "skills" | "experience_summary";
+
+const REVEAL_ORDER: { key: RevealKey; label: string; multiline?: boolean }[] = [
   { key: "full_name", label: "full name" },
   { key: "email", label: "email" },
   { key: "phone", label: "phone" },
   { key: "location", label: "location" },
   { key: "linkedin", label: "linkedin" },
   { key: "website", label: "website" },
-  { key: "experience", label: "experience summary" },
+  { key: "skills", label: "skills", multiline: true },
+  { key: "experience_summary", label: "experience summary", multiline: true },
 ];
 
 const REVEAL_INTERVAL = 400;
 
-function valueFor(key: RevealKey, profile: Profile): string {
-  if (key === "experience") {
-    const text = (profile.resume_text || "").replace(/\s+/g, " ").trim();
-    return text.slice(0, 220);
-  }
-  return profile[key] || "";
+function isContactKey(key: RevealKey): key is ContactKey {
+  return (CONTACT_KEYS as readonly string[]).includes(key);
+}
+
+// compose the two non-column fields into free_context so they persist.
+function composeContext(parsed: ParsedResume): string {
+  return [
+    parsed.skills ? `skills: ${parsed.skills}` : "",
+    parsed.experience_summary ? `experience: ${parsed.experience_summary}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export default function ResumeParser({
@@ -52,10 +83,12 @@ export default function ResumeParser({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const [parsed, setParsed] = useState<ParsedResume | null>(null);
   // how many fields have been revealed so far; -1 = reveal not running
   const [revealCount, setRevealCount] = useState(-1);
 
-  const parsing = uploading;
+  const parsing = uploading || enriching;
 
   // drive the staggered reveal once parsing finishes. setState lives inside
   // the interval callback (not the effect body) to satisfy the lint rule.
@@ -77,9 +110,59 @@ export default function ResumeParser({
   async function handleFile(file: File) {
     setFileName(file.name);
     setRevealCount(-1);
+    setParsed(null);
+
+    // persist the raw resume text + filename (the autofiller reads resume_text)
     await onUpload(file);
-    // kick off the reveal once the new profile data is in
+
+    // enrich with structured fields via the dedicated parse route
+    setEnriching(true);
+    let result: ParsedResume = EMPTY_PARSED;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/parse-resume", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = (await res.json()) as Partial<ParsedResume>;
+        result = { ...EMPTY_PARSED, ...data };
+      }
+    } catch {
+      /* fall back to whatever /api/upload already saved to the profile */
+    } finally {
+      setEnriching(false);
+    }
+
+    // seed contact fields from the parse, falling back to the saved profile
+    const seeded: ParsedResume = { ...result };
+    CONTACT_KEYS.forEach((key) => {
+      if (!seeded[key]) seeded[key] = profile[key] || "";
+    });
+    setParsed(seeded);
+
+    // mirror into the profile so confirm & save persists the extracted data
+    setProfile((current) => ({
+      ...current,
+      full_name: seeded.full_name,
+      email: seeded.email,
+      phone: seeded.phone,
+      location: seeded.location,
+      linkedin: seeded.linkedin,
+      website: seeded.website,
+      free_context: composeContext(seeded) || current.free_context,
+    }));
+
     setRevealCount(0);
+  }
+
+  function updateField(key: RevealKey, value: string) {
+    if (!parsed) return;
+    const next: ParsedResume = { ...parsed, [key]: value };
+    setParsed(next);
+    if (isContactKey(key)) {
+      setProfile((current) => ({ ...current, [key]: value }));
+    } else {
+      setProfile((current) => ({ ...current, free_context: composeContext(next) }));
+    }
   }
 
   function onDrop(event: React.DragEvent) {
@@ -89,7 +172,7 @@ export default function ResumeParser({
     if (file) handleFile(file);
   }
 
-  const revealing = revealCount >= 0;
+  const revealing = revealCount >= 0 && parsed !== null;
   const allRevealed = revealCount >= REVEAL_ORDER.length;
 
   return (
@@ -147,9 +230,7 @@ export default function ResumeParser({
         <span className="text-xs text-text-muted">or click to browse — pdf, txt, md, doc, docx</span>
       </button>
 
-      {fileName && !parsing && (
-        <p className="mt-3 text-xs text-accent">{fileName}</p>
-      )}
+      {fileName && !parsing && <p className="mt-3 text-xs text-accent">{fileName}</p>}
 
       {revealing && (
         <div className="mt-5 space-y-3">
@@ -157,7 +238,7 @@ export default function ResumeParser({
             const shown = index < revealCount;
             if (!shown && index !== revealCount) return null;
             const resolved = shown;
-            const value = valueFor(field.key, profile);
+            const value = parsed ? parsed[field.key] : "";
             return (
               <div
                 key={field.key}
@@ -169,18 +250,20 @@ export default function ResumeParser({
                 </span>
                 {!resolved ? (
                   <span className="text-sm text-text-muted">extracting...</span>
-                ) : field.key === "experience" ? (
-                  <p className="text-sm leading-6 text-text-secondary">
-                    {value || "no experience text extracted."}
-                  </p>
+                ) : field.multiline ? (
+                  <textarea
+                    rows={2}
+                    className="w-full resize-none rounded-lg border border-transparent bg-transparent text-sm leading-6 text-text-secondary outline-none transition focus:border-border-base"
+                    value={value}
+                    placeholder="not found — click to add"
+                    onChange={(event) => updateField(field.key, event.target.value)}
+                  />
                 ) : (
                   <input
                     className="w-full rounded-lg border border-transparent bg-transparent text-sm text-text-primary outline-none transition focus:border-border-base"
                     value={value}
                     placeholder="not found — click to add"
-                    onChange={(event) =>
-                      setProfile((current) => ({ ...current, [field.key]: event.target.value }))
-                    }
+                    onChange={(event) => updateField(field.key, event.target.value)}
                   />
                 )}
               </div>
