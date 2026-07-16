@@ -22,11 +22,12 @@ export async function POST(req: NextRequest) {
 
   if (fileExt === 'pdf') {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfMod = await import('pdf-parse') as any;
-      const pdfParse = pdfMod.default ?? pdfMod;
-      const data = await pdfParse(buffer);
-      content = data.text?.trim() || '';
+      // pdf-parse v2 api: new PDFParse({ data }).getText() — the v1 callable
+      // default export does not exist in this version and throws at runtime.
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      content = result.text?.trim() || '';
       if (!content) throw new Error('Empty PDF');
     } catch {
       content = `[PDF: ${fileName}] — Could not extract text. Try saving as .txt for best results.`;
