@@ -16,7 +16,7 @@ export function useProfile() {
     const data = await res.json();
     if (data.profile) {
       setProfile({ ...defaultProfile, ...data.profile });
-      setGmailConnected(!!data.profile.gmail_token);
+      setGmailConnected(!!data.profile.gmail_connected);
     }
     setRules(data.rules || []);
   }, []);

@@ -4,7 +4,15 @@ import { getDb, initDb } from '@/lib/db';
 export async function GET() {
   const sql = getDb();
   await initDb();
-  const [profile] = await sql`SELECT * FROM profile WHERE id = 1`;
+  // Never expose gmail_token / gmail_refresh_token over the public API — select
+  // only safe columns and surface Gmail state as a boolean computed in SQL.
+  const rows = await sql`
+    SELECT id, full_name, email, phone, location, linkedin, website,
+           resume_text, free_context, resume_file_name,
+           (gmail_token IS NOT NULL AND gmail_token <> '') AS gmail_connected
+    FROM profile WHERE id = 1
+  `;
+  const profile = rows[0] ?? null;
   const rules = await sql`SELECT * FROM context_rules ORDER BY created_at DESC`;
   return NextResponse.json({ profile, rules });
 }
