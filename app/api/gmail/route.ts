@@ -38,6 +38,35 @@ interface ExtractedApplicationEmail {
 
 interface ExistingApplication {
   id: number;
+  status?: string;
+}
+
+// pipeline progression rank. auto-status only ever moves an application
+// forward (or to a terminal state), never backward — a stray "we received
+// your application" email must not undo an interview/offer/rejection.
+const STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  running: 0,
+  review: 0,
+  done: 1,
+  failed: 1,
+  demo: 1,
+  interviewing: 2,
+  offer: 3,
+  rejected: 3,
+};
+
+function rankOf(status: string | undefined): number {
+  return status ? STATUS_RANK[status] ?? 0 : 0;
+}
+
+// pull a comparable domain from a `From` header ("Team <jobs@lever.co>").
+function senderDomain(from: string): string {
+  const at = from.match(/@([A-Za-z0-9.-]+)/);
+  if (!at) return '';
+  const parts = at[1].toLowerCase().split('.').filter(Boolean);
+  if (parts.length <= 2) return parts.join('.');
+  return parts.slice(-2).join('.');
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
@@ -137,22 +166,32 @@ Body: ${snippet}`,
       const info = JSON.parse(match[0]) as ExtractedApplicationEmail;
       if (!info.is_job_related || !info.company) continue;
 
-      // Check if we already have this application
+      // Match an existing application by company name (case-insensitive) or by
+      // the sender's domain appearing in the stored job_url. Most-recent wins.
+      const domain = senderDomain(from);
       const existing = await sql`
-        SELECT id FROM applications WHERE company = ${info.company}
-        AND (job_title = ${info.job_title} OR job_title = '')
+        SELECT id, status FROM applications
+        WHERE company ILIKE ${info.company}
+           OR (${domain} <> '' AND job_url ILIKE ${'%' + domain + '%'})
+        ORDER BY applied_at DESC
         LIMIT 1
       ` as ExistingApplication[];
 
-      if (existing.length > 0 && info.status) {
-        await sql`UPDATE applications SET status = ${info.status} WHERE id = ${existing[0].id}`;
-      } else if (!existing.length) {
+      if (existing.length > 0) {
+        // Only apply a status the email is confident about, and only if it
+        // moves the application forward — never downgrade a further-along stage.
+        if (info.status && rankOf(info.status) > rankOf(existing[0].status)) {
+          await sql`UPDATE applications SET status = ${info.status} WHERE id = ${existing[0].id}`;
+          synced++;
+        }
+      } else {
+        // No match: preserve the original import behavior.
         await sql`
           INSERT INTO applications (job_url, company, job_title, status, source, log)
           VALUES (${info.job_url || ''}, ${info.company}, ${info.job_title || ''}, ${info.status || 'done'}, 'gmail', ${`Imported from Gmail: ${subject}`})
         `;
+        synced++;
       }
-      synced++;
     } catch { continue; }
   }
 
