@@ -284,7 +284,12 @@ Return ONLY the JSON array, no explanation.`;
         }
         fillCount++;
 
-        if (instruction.question_label && instruction.value) {
+        // Only remember answers to genuine custom questions. Standard identity/
+        // contact fields come straight from the profile and must NOT be saved as
+        // "training" — otherwise a wrong inference (e.g. school as employer) gets
+        // fed back as a past answer and reinforces itself on every future run.
+        const isStandardField = /full ?name|first ?name|last ?name|e-?mail|phone|mobile|location|city|state|country|zip|postal|address|linkedin|website|portfolio|current company|employer|resume|résumé|cv/i;
+        if (instruction.question_label && instruction.value && !isStandardField.test(instruction.question_label)) {
           await sql`
             INSERT INTO training_examples (question_text, answer_given, job_url)
             VALUES (${instruction.question_label}, ${instruction.value}, ${job.jobUrl})
