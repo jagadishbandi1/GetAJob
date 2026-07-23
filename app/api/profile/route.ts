@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { isDemo, DEMO_PROFILE, DEMO_RULES } from '@/lib/demo';
 
 export async function GET() {
+  // On prod, never expose real data — serve sample data instead.
+  if (isDemo()) return NextResponse.json({ profile: DEMO_PROFILE, rules: DEMO_RULES });
   const sql = getDb();
   await initDb();
   // Never expose gmail_token / gmail_refresh_token over the public API — select
@@ -18,6 +21,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Prod is a read-only demo — accept the request but don't persist anything.
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   await initDb();
   const body = await req.json();
@@ -46,6 +51,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   const { searchParams } = req.nextUrl;
   const type = searchParams.get('type');

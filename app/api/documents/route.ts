@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { isDemo } from '@/lib/demo';
 
 export async function GET() {
+  if (isDemo()) return NextResponse.json([]);
   const sql = getDb();
   await initDb();
   const docs = await sql`
@@ -12,6 +14,7 @@ export async function GET() {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');

@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { isDemo } from '@/lib/demo';
 
 const VALID_STATUSES = ['pending', 'running', 'done', 'failed', 'interviewing', 'offer', 'rejected'];
 
 export async function GET(req: NextRequest) {
-  const sql = getDb();
-  await initDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');
+  // Prod demo: don't expose real applications.
+  if (isDemo()) return NextResponse.json(id ? null : []);
+  const sql = getDb();
+  await initDb();
 
   if (id) {
     const rows = await sql`SELECT * FROM applications WHERE id = ${id}`;
@@ -21,6 +24,7 @@ export async function GET(req: NextRequest) {
 
 // Manual application entry
 export async function POST(req: NextRequest) {
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   await initDb();
   const body = await req.json();
@@ -41,6 +45,7 @@ export async function POST(req: NextRequest) {
 
 // Status update
 export async function PATCH(req: NextRequest) {
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   const body = await req.json();
   const { id, status } = body;
@@ -53,6 +58,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (isDemo()) return NextResponse.json({ ok: true, demo: true });
   const sql = getDb();
   const { searchParams } = req.nextUrl;
   const id = searchParams.get('id');

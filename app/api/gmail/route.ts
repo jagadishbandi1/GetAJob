@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { isDemo } from '@/lib/demo';
 import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic();
@@ -57,6 +58,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 }
 
 export async function POST() {
+  if (isDemo()) return NextResponse.json({ ok: false, error: 'gmail sync is disabled in the demo — run locally.' });
   const sql = getDb();
   const rows = await sql`SELECT gmail_token, gmail_refresh_token FROM profile WHERE id = 1`;
   const profile = rows[0] as GmailProfile | undefined;
@@ -159,6 +161,7 @@ Body: ${snippet}`,
 
 // Check connection status
 export async function GET() {
+  if (isDemo()) return NextResponse.json({ connected: false });
   const sql = getDb();
   const rows = await sql`SELECT gmail_token FROM profile WHERE id = 1`;
   const profile = rows[0] as GmailProfile | undefined;

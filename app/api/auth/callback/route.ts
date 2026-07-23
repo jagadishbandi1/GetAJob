@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { isDemo } from '@/lib/demo';
 
 export async function GET(req: NextRequest) {
+  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:4000';
+  // Prod is a demo — don't let anyone write a Gmail token into the shared DB.
+  if (isDemo()) return NextResponse.redirect(`${base}?gmail=demo`);
   const { searchParams } = req.nextUrl;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
-
-  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:4000';
 
   if (error || !code) {
     return NextResponse.redirect(`${base}?gmail=error`);
