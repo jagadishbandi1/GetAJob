@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { isDemo, DEMO_PARSED_RESUME } from '@/lib/demo';
+import { rateLimit } from '@/lib/rate-limit';
 
 // reuse the same client construction as lib/autofiller.ts (no args — reads
 // ANTHROPIC_API_KEY from the environment) and the same haiku model id.

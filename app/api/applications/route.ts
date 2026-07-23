@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 import { isDemo } from '@/lib/demo';
 
-const VALID_STATUSES = ['pending', 'running', 'done', 'failed', 'interviewing', 'offer', 'rejected'];
+const VALID_STATUSES = ['pending', 'running', 'review', 'demo', 'done', 'failed', 'interviewing', 'offer', 'rejected'];
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;

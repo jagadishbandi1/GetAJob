@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 import type { ContextRule, Profile } from '@/lib/autofiller';
+import { isDemo } from '@/lib/demo';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req, { limit: 5, windowMs: 60_000 });
+  if (limited) return limited;
+
   const sql = getDb();
   await initDb();
   const { jobUrl } = await req.json();
@@ -27,8 +32,7 @@ export async function POST(req: NextRequest) {
   };
 
   // Demo mode: playwright cannot launch a browser on vercel, so don't even try.
-  // mark the application as 'demo' (a terminal state) and surface a friendly log.
-  if (process.env.VERCEL) {
+  if (isDemo()) {
     await sql`
       UPDATE applications
       SET status='demo', log='this is a live demo. to autofill for real, clone the repo and run locally.'
@@ -37,26 +41,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ appId });
   }
 
-  // fire-and-forget: return appId immediately, but guarantee a .catch() always
-  // fires so the application never gets stuck in 'running'. wrapping in
-  // Promise.resolve() ensures even a synchronous throw (e.g. failed dynamic
-  // import) is caught and persisted as a 'failed' status.
+  // fire-and-forget: return appId immediately. autofiller sets the final status
+  // ('review' or 'failed') — do not overwrite it here.
   Promise.resolve()
     .then(async () => {
       const { runAutofiller } = await import('@/lib/autofiller');
-      const { success } = await runAutofiller(
+      await runAutofiller(
         { jobUrl, appId, profile: profile as Profile, contextRules: contextRules as ContextRule[] },
         onLog
       );
-      await sql`UPDATE applications SET status=${success ? 'done' : 'failed'} WHERE id=${appId}`;
     })
     .catch(async (err) => {
       const msg = err instanceof Error ? err.message : String(err);
       logs.push(`Error: ${msg}`);
-      // The DB write itself can fail (e.g. a Neon connect timeout was the
-      // original error). Swallow it so this never becomes an unhandled
-      // rejection — the stale-run sweep in GET /api/applications will reap any
-      // application left stuck in 'running'.
       try {
         await sql`UPDATE applications SET status='failed', log=${logs.join('\n')} WHERE id=${appId}`;
       } catch { /* db unreachable — self-heal will mark it failed later */ }

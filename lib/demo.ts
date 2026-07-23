@@ -23,3 +23,15 @@ export const DEMO_RULES = [
   { id: 1, trigger_keyword: 'salary', response: '$140k', created_at: '' },
   { id: 2, trigger_keyword: 'notice period', response: '2 weeks', created_at: '' },
 ];
+
+// Returned by /api/parse-resume on Vercel — no Anthropic call.
+export const DEMO_PARSED_RESUME = {
+  full_name: DEMO_PROFILE.full_name,
+  email: DEMO_PROFILE.email,
+  phone: DEMO_PROFILE.phone,
+  location: DEMO_PROFILE.location,
+  linkedin: DEMO_PROFILE.linkedin,
+  website: DEMO_PROFILE.website,
+  skills: 'product management, discovery, 0-to-1 launches, web apps',
+  experience_summary: DEMO_PROFILE.resume_text,
+};
