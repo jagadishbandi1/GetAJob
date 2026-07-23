@@ -30,6 +30,7 @@ type Log = (msg: string) => Promise<void> | void;
 interface ScannedInput {
   tag: string; type: string; name: string; id: string;
   placeholder: string; label: string; required: boolean;
+  options?: string[]; // choices for <select> and radio/checkbox groups
 }
 interface FrameScan { title: string; url: string; inputs: ScannedInput[]; bodyText: string }
 
@@ -44,14 +45,52 @@ function extractInputs(): FrameScan {
     if (aria) return aria.trim();
     return '';
   }
-  const inputs = Array.from(document.querySelectorAll('input, textarea, select')).map(el => {
+  // The label for a single radio/checkbox option (what the user reads next to it).
+  function getOptionLabel(el: Element): string {
+    const own = getLabelText(el);
+    if (own) return own;
+    const val = (el as HTMLInputElement).value || '';
+    return val && val.toLowerCase() !== 'on' ? val : '';
+  }
+  const inputs: ScannedInput[] = [];
+  const seenGroups = new Set<string>(); // radio/checkbox groups already emitted (by name)
+  for (const el of Array.from(document.querySelectorAll('input, textarea, select'))) {
     const input = el as HTMLInputElement;
-    return {
-      tag: el.tagName, type: input.type || '', name: input.name || '',
+    const type = (input.type || '').toLowerCase();
+
+    // Collapse radio/checkbox groups that share a name into ONE field carrying
+    // every option label, so Claude picks from the real choices.
+    if ((type === 'radio' || type === 'checkbox') && input.name) {
+      if (seenGroups.has(input.name)) continue;
+      seenGroups.add(input.name);
+      const members = Array.from(
+        document.querySelectorAll(`input[name="${CSS.escape(input.name)}"]`),
+      ) as HTMLInputElement[];
+      const options = members.map(getOptionLabel).filter(Boolean);
+      // Prefer a group-level label (fieldset legend / aria-labelledby) over one option's.
+      const fieldset = input.closest('fieldset');
+      const legend = fieldset?.querySelector('legend')?.textContent?.trim() || '';
+      inputs.push({
+        tag: input.tagName, type, name: input.name, id: input.id || '',
+        placeholder: input.placeholder || '', label: legend || getLabelText(input),
+        required: input.required, options: options.length ? options : undefined,
+      });
+      continue;
+    }
+
+    let options: string[] | undefined;
+    if (input.tagName === 'SELECT') {
+      const opts = Array.from((input as unknown as HTMLSelectElement).options)
+        .map(o => (o.textContent || '').trim())
+        .filter(t => t && !/^(select|choose|please select|--)/i.test(t));
+      if (opts.length) options = opts;
+    }
+    inputs.push({
+      tag: input.tagName, type: input.type || '', name: input.name || '',
       id: input.id || '', placeholder: input.placeholder || '',
-      label: getLabelText(el), required: input.required,
-    };
-  });
+      label: getLabelText(input), required: input.required, options,
+    });
+  }
   return {
     title: document.title,
     url: window.location.href,
@@ -146,6 +185,123 @@ async function tryClickApply(page: Page, context: BrowserContext, onLog: Log): P
   await active.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
   return active;
 }
+
+// Text that must NEVER be clicked while opening a dropdown / choosing an option —
+// clicking these could advance or submit the application. Fill-only invariant.
+const FORBIDDEN_CLICK = /submit|apply now|finish|send application|continue to|next step/i;
+
+function norm(s: string): string { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+// Choose an option in a native <select> OR a custom JS dropdown.
+// Returns a short description of how it succeeded, or null if nothing matched.
+async function selectWithFallback(frame: Frame, selector: string, value: string): Promise<string | null> {
+  // 1) Native <select>: try by label, then value, then visible text.
+  for (const opt of [{ label: value }, { value }, { label: value, value }]) {
+    try {
+      await frame.selectOption(selector, opt, { timeout: 1500 });
+      return 'native select';
+    } catch { /* not a native select or no such option — try next */ }
+  }
+
+  // 2) Custom widget: click the trigger (or its nearest clickable ancestor) to open the popup.
+  let opened = false;
+  try {
+    const trigger = frame.locator(selector).first();
+    await trigger.click({ timeout: 1500 });
+    opened = true;
+  } catch {
+    try {
+      const clickable = frame.locator(selector).first().locator(
+        'xpath=ancestor-or-self::*[self::button or @role="button" or @role="combobox" or @tabindex][1]',
+      );
+      await clickable.first().click({ timeout: 1500 });
+      opened = true;
+    } catch { /* could not open */ }
+  }
+  if (!opened) return null;
+  await frame.waitForTimeout(400);
+
+  // 3) Pick the matching option from the opened listbox. Never click forbidden text.
+  const target = norm(value);
+  // 3a) ARIA option by accessible name (exact, then substring).
+  for (const re of [new RegExp(`^\\s*${escapeRe(value)}\\s*$`, 'i'), new RegExp(escapeRe(value), 'i')]) {
+    try {
+      const opt = frame.getByRole('option', { name: re }).first();
+      const txt = norm(await opt.innerText({ timeout: 800 }));
+      if (txt && !FORBIDDEN_CLICK.test(txt)) { await opt.click({ timeout: 1200 }); return 'custom dropdown (role=option)'; }
+    } catch { /* try next strategy */ }
+  }
+  // 3b) Any visible element inside a listbox/menu/option container whose text matches.
+  try {
+    const containers = ['[role="listbox"]', '[class*="menu"]', '[class*="option"]', '[class*="dropdown"]', '[class*="select"]'];
+    const matched: string | null = await frame.evaluate(
+      ({ containers, target, forbidden }) => {
+        const fb = new RegExp(forbidden, 'i');
+        for (const sel of containers) {
+          for (const box of Array.from(document.querySelectorAll(sel))) {
+            const rect = (box as HTMLElement).getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) continue;
+            const cands = box.querySelectorAll('[role="option"], li, div, span, a, button');
+            for (const c of Array.from(cands)) {
+              const t = (c.textContent || '').replace(/\s+/g, ' ').trim();
+              const tl = t.toLowerCase();
+              if (!t || fb.test(tl)) continue;
+              if (tl === target || tl.includes(target)) {
+                (c as HTMLElement).setAttribute('data-gajf-pick', '1');
+                return t;
+              }
+            }
+          }
+        }
+        return null;
+      },
+      { containers, target, forbidden: FORBIDDEN_CLICK.source },
+    );
+    if (matched) {
+      const pick = frame.locator('[data-gajf-pick="1"]').first();
+      await pick.click({ timeout: 1200 });
+      await frame.evaluate(() => document.querySelectorAll('[data-gajf-pick]').forEach(e => e.removeAttribute('data-gajf-pick')));
+      return 'custom dropdown (text match)';
+    }
+  } catch { /* nothing matched */ }
+  return null;
+}
+
+// Check a radio/checkbox rendered natively OR as a styled button/div.
+async function checkWithFallback(frame: Frame, selector: string, value: string): Promise<string | null> {
+  // 1) Native check by selector.
+  try { await frame.check(selector, { timeout: 1500 }); return 'native check'; } catch { /* custom widget */ }
+
+  // 2) Native inputs sharing the group name, matched by value attribute or associated label.
+  try {
+    const group = frame.locator(selector).first();
+    const name = await group.getAttribute('name');
+    if (name) {
+      const byValue = frame.locator(`input[name="${name}"][value="${value}"]`).first();
+      try { await byValue.check({ timeout: 1200 }); return 'native check (by value)'; } catch { /* try label */ }
+    }
+  } catch { /* fall through */ }
+
+  // 3) Click the label/option whose visible text matches `value` (styled radio/checkbox).
+  const target = norm(value);
+  for (const re of [new RegExp(`^\\s*${escapeRe(value)}\\s*$`, 'i'), new RegExp(escapeRe(value), 'i')]) {
+    for (const role of ['radio', 'checkbox', 'option'] as const) {
+      try {
+        const opt = frame.getByRole(role, { name: re }).first();
+        const txt = norm(await opt.innerText({ timeout: 700 }));
+        if (!FORBIDDEN_CLICK.test(txt)) { await opt.click({ timeout: 1200 }); return `styled ${role}`; }
+      } catch { /* try next */ }
+    }
+  }
+  try {
+    const lbl = frame.getByText(new RegExp(`^\\s*${escapeRe(value)}\\s*$`, 'i')).first();
+    const txt = norm(await lbl.innerText({ timeout: 700 }));
+    if (txt === target && !FORBIDDEN_CLICK.test(txt)) { await lbl.click({ timeout: 1200 }); return 'label text'; }
+  } catch { /* nothing matched */ }
+  return null;
+}
+
+function escapeRe(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 export async function runAutofiller(job: AutofillJob, onLog: Log) {
   const sql = getDb();
@@ -254,6 +410,8 @@ Return a JSON array of fill instructions. Each item:
 - action: "fill" | "select" | "check"
 - question_label: human-readable label of the field
 
+Some fields include an "options" array listing the available choices (this covers native <select> dropdowns, custom JS dropdowns, and radio/checkbox groups). For a "select" or "check" action you MUST set value to the EXACT text of one of that field's options — do not paraphrase, abbreviate, or invent a value that is not in the list. If none of the options fit, skip the field.
+
 Only include fields you have real data for. If you are unsure of a value, skip the field rather than guessing — e.g. do NOT put a school as the "current company/employer", and do not invent employers, dates, or salaries. Skip file upload inputs. Never include submit buttons.
 Return ONLY the JSON array, no explanation.`;
 
@@ -279,11 +437,13 @@ Return ONLY the JSON array, no explanation.`;
           await targetFrame.fill(instruction.selector, instruction.value);
           await onLog(`Filled "${instruction.question_label || instruction.selector}" → "${instruction.value}"`);
         } else if (instruction.action === 'select') {
-          await targetFrame.selectOption(instruction.selector, instruction.value);
-          await onLog(`Selected "${instruction.value}" for "${instruction.question_label || instruction.selector}"`);
+          const how = await selectWithFallback(targetFrame, instruction.selector, instruction.value);
+          if (!how) { await onLog(`Skipped "${instruction.question_label || instruction.selector}": could not select "${instruction.value}"`); continue; }
+          await onLog(`Selected "${instruction.value}" for "${instruction.question_label || instruction.selector}" (${how})`);
         } else if (instruction.action === 'check') {
-          await targetFrame.check(instruction.selector);
-          await onLog(`Checked "${instruction.question_label || instruction.selector}"`);
+          const how = await checkWithFallback(targetFrame, instruction.selector, instruction.value);
+          if (!how) { await onLog(`Skipped "${instruction.question_label || instruction.selector}": could not check "${instruction.value}"`); continue; }
+          await onLog(`Checked "${instruction.question_label || instruction.selector}" → "${instruction.value}" (${how})`);
         }
         fillCount++;
 
