@@ -8,6 +8,9 @@ export interface Profile {
   full_name: string; email: string; phone: string;
   location: string; linkedin: string; website: string;
   resume_text: string; free_context: string;
+  resume_file_name?: string;
+  resume_file_data?: string; // base64
+  resume_file_type?: string;
 }
 
 export interface ContextRule {
@@ -299,6 +302,58 @@ Return ONLY the JSON array, no explanation.`;
         await targetFrame.waitForTimeout(300);
       } catch {
         await onLog(`Skipped "${instruction.question_label || instruction.selector}": not found or not interactable`);
+      }
+    }
+
+    // Attach the resume file to the form's file input(s). Playwright's
+    // setInputFiles works even on hidden native inputs behind styled buttons.
+    if (job.profile.resume_file_data && job.profile.resume_file_name) {
+      try {
+        const os = await import('os');
+        const fs = await import('fs');
+        const path = await import('path');
+        const safeName = job.profile.resume_file_name.replace(/[^\w.-]/g, '_');
+        const tmpPath = path.join(os.tmpdir(), `gajf_${Date.now()}_${safeName}`);
+        fs.writeFileSync(tmpPath, Buffer.from(job.profile.resume_file_data, 'base64'));
+
+        // Pick which file inputs get the resume: prefer ones whose context
+        // mentions resume/cv; otherwise the first, unless it's clearly for a
+        // cover letter / portfolio / photo.
+        const fileMeta: { idx: number; ctx: string }[] = await targetFrame.evaluate(() => {
+          return Array.from(document.querySelectorAll('input[type="file"]')).map((el, idx) => {
+            const input = el as HTMLInputElement;
+            let ctx = `${input.name} ${input.id} ${input.getAttribute('aria-label') || ''}`;
+            const label = input.id ? document.querySelector(`label[for="${input.id}"]`) : null;
+            if (label) ctx += ' ' + (label.textContent || '');
+            const wrap = input.closest('div, section, fieldset');
+            if (wrap) ctx += ' ' + (wrap.textContent || '').slice(0, 140);
+            return { idx, ctx: ctx.toLowerCase() };
+          });
+        });
+
+        let targets = fileMeta.filter((m) => /resume|cv|résumé/.test(m.ctx)).map((m) => m.idx);
+        if (targets.length === 0 && fileMeta.length > 0) {
+          const first = fileMeta[0];
+          if (!/cover letter|portfolio|photo|headshot|image/.test(first.ctx)) targets = [first.idx];
+        }
+
+        const fileInputs = targetFrame.locator('input[type="file"]');
+        let attached = 0;
+        for (const idx of targets) {
+          try {
+            await fileInputs.nth(idx).setInputFiles(tmpPath, { timeout: 5000 });
+            attached++;
+          } catch { /* decorative/custom uploader — skip */ }
+        }
+        if (attached > 0) {
+          await onLog(`Attached resume (${job.profile.resume_file_name}) to ${attached} upload field(s).`);
+          fillCount += attached;
+        } else if (fileMeta.length > 0) {
+          await onLog('Found a file upload but could not attach automatically (the site likely uses a custom uploader) — attach the resume manually.');
+        }
+        try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+      } catch (e) {
+        await onLog(`Could not attach resume: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 

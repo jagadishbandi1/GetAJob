@@ -64,6 +64,10 @@ export async function initDb() {
   // Add Gmail columns if not present (idempotent migration)
   await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS gmail_token TEXT`;
   await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT`;
+  // Store the raw resume file (base64) so the autofiller can attach it to
+  // application forms via setInputFiles.
+  await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS resume_file_data TEXT`;
+  await sql`ALTER TABLE profile ADD COLUMN IF NOT EXISTS resume_file_type TEXT`;
 
   // Seed empty profile if none exists
   const rows = await sql`SELECT id FROM profile WHERE id = 1`;

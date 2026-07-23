@@ -39,7 +39,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (type === 'resume') {
-    await sql`UPDATE profile SET resume_text=${content}, resume_file_name=${fileName} WHERE id=1`;
+    // Persist the raw file (base64) + mime so the autofiller can attach it.
+    const fileData = buffer.toString('base64');
+    const fileType = file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream');
+    await sql`
+      UPDATE profile
+      SET resume_text=${content}, resume_file_name=${fileName},
+          resume_file_data=${fileData}, resume_file_type=${fileType}
+      WHERE id=1
+    `;
 
     try {
       const response = await client.messages.create({
