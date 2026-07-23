@@ -264,39 +264,109 @@ async function selectWithFallback(frame: Frame, selector: string, value: string)
       return 'custom dropdown (text match)';
     }
   } catch { /* nothing matched */ }
+
+  // 4) Graceful fallback: the field is actually a plain free-text / number input
+  //    that only SOUNDS like a choice — e.g. Ashby renders "Will you require
+  //    sponsorship?" (yes/no) and "How many years of experience?" as
+  //    <input type="text" placeholder="Type here...">, not a dropdown. If the
+  //    selector points at such an input, just type the value. fill never submits.
+  try {
+    const loc = frame.locator(selector).first();
+    if (await loc.count() > 0) {
+      const kind = await loc.evaluate((el) => ({
+        tag: el.tagName,
+        type: (el.getAttribute('type') || 'text').toLowerCase(),
+        readonly: (el as HTMLInputElement).readOnly,
+        disabled: (el as HTMLInputElement).disabled,
+      }));
+      const fillable = kind.tag === 'TEXTAREA'
+        || (kind.tag === 'INPUT' && ['text', 'tel', 'email', 'url', 'number', 'search', ''].includes(kind.type));
+      if (fillable && !kind.readonly && !kind.disabled) {
+        await loc.fill(value, { timeout: 1500 });
+        return 'filled as text (field is a free-text input, not a dropdown)';
+      }
+    }
+  } catch { /* not a fillable text input */ }
   return null;
 }
 
 // Check a radio/checkbox rendered natively OR as a styled button/div.
+// IMPORTANT: a radio/checkbox group shares one `name`, so a name-based selector
+// resolves to EVERY option. We must never blindly `check(selector)` — that
+// silently ticks the first option (e.g. Lever's "How did you hear about us?"
+// group would tick "Friend" no matter what value we wanted). Always match the
+// specific option by its value attribute or label text first.
 async function checkWithFallback(frame: Frame, selector: string, value: string): Promise<string | null> {
-  // 1) Native check by selector.
-  try { await frame.check(selector, { timeout: 1500 }); return 'native check'; } catch { /* custom widget */ }
-
-  // 2) Native inputs sharing the group name, matched by value attribute or associated label.
-  try {
-    const group = frame.locator(selector).first();
-    const name = await group.getAttribute('name');
-    if (name) {
-      const byValue = frame.locator(`input[name="${name}"][value="${value}"]`).first();
-      try { await byValue.check({ timeout: 1200 }); return 'native check (by value)'; } catch { /* try label */ }
-    }
-  } catch { /* fall through */ }
-
-  // 3) Click the label/option whose visible text matches `value` (styled radio/checkbox).
   const target = norm(value);
+
+  // 1) Value-aware group match. Among the native radio/checkbox inputs (or ARIA
+  //    radios/options) reachable from `selector` — expanded to the whole group
+  //    when they share a `name` — pick the ONE whose value attribute or label
+  //    text matches `value` (case-insensitive: exact, then contains). Mark it
+  //    (and its wrapping label) so Playwright can act on that exact element.
+  try {
+    const tag = await frame.evaluate(({ selector, value }) => {
+      const t = (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      document.querySelectorAll('[data-gajf-pick],[data-gajf-picklabel]').forEach(e => { e.removeAttribute('data-gajf-pick'); e.removeAttribute('data-gajf-picklabel'); });
+      const labelText = (n: Element): string => {
+        const id = (n as HTMLElement).id;
+        if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`); if (l) return (l.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+        const wrap = n.closest('label'); if (wrap) return (wrap.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const al = n.getAttribute('aria-label'); if (al) return al.replace(/\s+/g, ' ').trim().toLowerCase();
+        return '';
+      };
+      let nodes: Element[] = [];
+      try { nodes = Array.from(document.querySelectorAll(selector)); } catch { /* invalid selector */ }
+      const named = nodes.find(n => (n as HTMLInputElement).name);
+      if (named) { nodes = Array.from(document.querySelectorAll(`input[name="${CSS.escape((named as HTMLInputElement).name)}"]`)); }
+      nodes = nodes.filter(n => n.matches('input[type=radio],input[type=checkbox]') || ['radio', 'checkbox', 'option'].includes(n.getAttribute('role') || ''));
+      if (!nodes.length) return null;
+      const info = nodes.map(n => ({ n, v: (n.getAttribute('value') || '').replace(/\s+/g, ' ').trim().toLowerCase(), l: labelText(n) }));
+      let pick = info.find(x => x.v === t || x.l === t);
+      if (!pick) pick = info.find(x => (x.v && x.v.includes(t)) || (x.l && x.l.includes(t)) || (x.l.length > 1 && t.includes(x.l)));
+      if (!pick) return null;
+      pick.n.setAttribute('data-gajf-pick', '1');
+      const wl = pick.n.closest('label'); if (wl) wl.setAttribute('data-gajf-picklabel', '1');
+      return pick.n.tagName;
+    }, { selector, value });
+    if (tag) {
+      const input = frame.locator('[data-gajf-pick="1"]').first();
+      let how: string | null = null;
+      try { await input.check({ timeout: 1200 }); how = 'native check (value match)'; }
+      catch {
+        try { await frame.locator('[data-gajf-picklabel="1"]').first().click({ timeout: 1000 }); how = 'label click (value match)'; }
+        catch { try { await input.click({ timeout: 800, force: true }); how = 'force check (value match)'; } catch { /* give up on this path */ } }
+      }
+      await frame.evaluate(() => document.querySelectorAll('[data-gajf-pick],[data-gajf-picklabel]').forEach(e => { e.removeAttribute('data-gajf-pick'); e.removeAttribute('data-gajf-picklabel'); }));
+      if (how) return how;
+    }
+  } catch { /* value-aware path failed — fall through */ }
+
+  // 2) Selector resolves to exactly one native input — safe to check directly.
+  try {
+    if (await frame.locator(selector).count() === 1) { await frame.check(selector, { timeout: 1200 }); return 'native check'; }
+  } catch { /* not a lone native input */ }
+
+  // 3) Fully custom button-style radios/checkboxes/options by accessible name
+  //    (exact, then substring). Never click forbidden (submit-like) text.
   for (const re of [new RegExp(`^\\s*${escapeRe(value)}\\s*$`, 'i'), new RegExp(escapeRe(value), 'i')]) {
     for (const role of ['radio', 'checkbox', 'option'] as const) {
       try {
         const opt = frame.getByRole(role, { name: re }).first();
-        const txt = norm(await opt.innerText({ timeout: 700 }));
+        if (await opt.count() === 0) continue;
+        const txt = norm(await opt.innerText({ timeout: 700 }).catch(() => ''));
         if (!FORBIDDEN_CLICK.test(txt)) { await opt.click({ timeout: 1200 }); return `styled ${role}`; }
       } catch { /* try next */ }
     }
   }
+
+  // 4) Last resort: a standalone clickable label whose exact text matches.
   try {
     const lbl = frame.getByText(new RegExp(`^\\s*${escapeRe(value)}\\s*$`, 'i')).first();
-    const txt = norm(await lbl.innerText({ timeout: 700 }));
-    if (txt === target && !FORBIDDEN_CLICK.test(txt)) { await lbl.click({ timeout: 1200 }); return 'label text'; }
+    if (await lbl.count() > 0) {
+      const txt = norm(await lbl.innerText({ timeout: 700 }).catch(() => ''));
+      if (txt === target && !FORBIDDEN_CLICK.test(txt)) { await lbl.click({ timeout: 1200 }); return 'label text'; }
+    }
   } catch { /* nothing matched */ }
   return null;
 }
@@ -410,7 +480,9 @@ Return a JSON array of fill instructions. Each item:
 - action: "fill" | "select" | "check"
 - question_label: human-readable label of the field
 
-Some fields include an "options" array listing the available choices (this covers native <select> dropdowns, custom JS dropdowns, and radio/checkbox groups). For a "select" or "check" action you MUST set value to the EXACT text of one of that field's options — do not paraphrase, abbreviate, or invent a value that is not in the list. If none of the options fit, skip the field.
+Pick the action from the field's shape, not from how the question sounds:
+- Use "select" (dropdowns) or "check" (radio/checkbox groups) ONLY for fields that include an "options" array. For those, value MUST be the EXACT text of one of that field's options — do not paraphrase, abbreviate, or invent a value that is not in the list. If none of the options fit, skip the field.
+- For every field WITHOUT an "options" array, use "fill" and type the answer as text — even when the question sounds like a choice. Yes/no questions ("Will you require visa sponsorship?"), numeric questions ("How many years of experience?"), and similar are frequently plain free-text inputs; answer them by typing (e.g. "No", "6"), not by "select"/"check".
 
 Only include fields you have real data for. If you are unsure of a value, skip the field rather than guessing — e.g. do NOT put a school as the "current company/employer", and do not invent employers, dates, or salaries. Skip file upload inputs. Never include submit buttons.
 Return ONLY the JSON array, no explanation.`;
