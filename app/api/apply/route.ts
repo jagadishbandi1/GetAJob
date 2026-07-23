@@ -53,7 +53,13 @@ export async function POST(req: NextRequest) {
     .catch(async (err) => {
       const msg = err instanceof Error ? err.message : String(err);
       logs.push(`Error: ${msg}`);
-      await sql`UPDATE applications SET status='failed', log=${logs.join('\n')} WHERE id=${appId}`;
+      // The DB write itself can fail (e.g. a Neon connect timeout was the
+      // original error). Swallow it so this never becomes an unhandled
+      // rejection — the stale-run sweep in GET /api/applications will reap any
+      // application left stuck in 'running'.
+      try {
+        await sql`UPDATE applications SET status='failed', log=${logs.join('\n')} WHERE id=${appId}`;
+      } catch { /* db unreachable — self-heal will mark it failed later */ }
     });
 
   return NextResponse.json({ appId });

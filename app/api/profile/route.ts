@@ -29,7 +29,13 @@ export async function POST(req: NextRequest) {
   const { type } = body;
 
   if (type === 'profile') {
-    const { full_name, email, phone, location, linkedin, website, resume_text, free_context } = body;
+    const { full_name, email, phone, location, linkedin, website, resume_text, free_context, resume_file_name } = body;
+    // When the resume is being cleared (empty name + empty text), also drop the
+    // stored file name/blob so a reset fully wipes it. Normal saves don't send
+    // an empty pair, so the uploaded file is preserved.
+    if (resume_file_name === '' && (resume_text === '' || resume_text == null)) {
+      await sql`UPDATE profile SET resume_file_name='', resume_file_data='', resume_file_type='' WHERE id=1`;
+    }
     await sql`
       UPDATE profile SET
         full_name=${full_name}, email=${email}, phone=${phone},

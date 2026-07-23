@@ -18,6 +18,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(app);
   }
 
+  // Self-heal: a run whose process or DB connection died mid-fill leaves a
+  // zombie 'running' record that never resolves. Reap any that haven't
+  // progressed in 15 minutes so the tracker doesn't show a permanent spinner.
+  try {
+    await sql`
+      UPDATE applications
+      SET status='failed',
+          log = COALESCE(log, '') || E'\n(auto-marked failed: run did not complete)'
+      WHERE status='running' AND applied_at::timestamptz < now() - interval '15 minutes'
+    `;
+  } catch { /* best-effort — never block the listing on the heal */ }
+
   const apps = await sql`SELECT * FROM applications ORDER BY applied_at DESC`;
   return NextResponse.json(apps);
 }
