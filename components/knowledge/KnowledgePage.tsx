@@ -7,6 +7,7 @@ import Skeleton from "@/components/layout/Skeleton";
 import type { Document, Profile, Rule, TrainingExample } from "@/hooks/types";
 import AnswerRules from "./AnswerRules";
 import DocumentsList from "./DocumentsList";
+import GmailSection from "./GmailSection";
 import ProfileCard from "./ProfileCard";
 import ResumeParser from "./ResumeParser";
 
@@ -21,6 +22,10 @@ export default function KnowledgePage({
   profileSaved,
   resumeUploading,
   docUploading,
+  gmailConnected,
+  gmailSyncing,
+  gmailSyncResult,
+  isDemo,
   onSaveProfile,
   onUploadResume,
   onUploadDocument,
@@ -28,6 +33,7 @@ export default function KnowledgePage({
   onAddRule,
   onDeleteRule,
   onDeleteTraining,
+  onSyncGmail,
 }: {
   profile: Profile;
   setProfile: React.Dispatch<React.SetStateAction<Profile>>;
@@ -39,6 +45,10 @@ export default function KnowledgePage({
   profileSaved: boolean;
   resumeUploading: boolean;
   docUploading: boolean;
+  gmailConnected: boolean;
+  gmailSyncing: boolean;
+  gmailSyncResult: string | null;
+  isDemo: boolean;
   onSaveProfile: () => void;
   onUploadResume: (file: File) => Promise<void> | void;
   onUploadDocument: (file: File) => void;
@@ -46,6 +56,7 @@ export default function KnowledgePage({
   onAddRule: (rule: { trigger_keyword: string; response: string }) => void;
   onDeleteRule: (id: number) => void;
   onDeleteTraining: (id?: number) => void;
+  onSyncGmail: () => void;
 }) {
   return (
     <section className="relative z-10 mx-auto max-w-4xl px-5 pb-24 pt-32">
@@ -74,6 +85,15 @@ export default function KnowledgePage({
         </ScrollReveal>
         <ScrollReveal delay={160}>
           <AnswerRules rules={rules} onAdd={onAddRule} onDelete={onDeleteRule} />
+        </ScrollReveal>
+        <ScrollReveal delay={200}>
+          <GmailSection
+            connected={gmailConnected}
+            syncing={gmailSyncing}
+            syncResult={gmailSyncResult}
+            isDemo={isDemo}
+            onSync={onSyncGmail}
+          />
         </ScrollReveal>
       </div>
 

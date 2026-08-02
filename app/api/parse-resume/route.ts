@@ -60,6 +60,11 @@ async function readFileContent(file: File): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  // Cap Anthropic spend from abuse; return sample data (no API call) on the demo.
+  const limited = rateLimit(req, { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+  if (isDemo()) return NextResponse.json(DEMO_PARSED_RESUME);
+
   let formData: FormData;
   try {
     formData = await req.formData();

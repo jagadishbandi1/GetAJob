@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 import { isDemo } from '@/lib/demo';
+import { rateLimit } from '@/lib/rate-limit';
 import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req, { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
   // Prod demo: don't accept or store uploaded files.
   if (isDemo()) {
     return NextResponse.json({ ok: true, demo: true, preview: 'this is a demo — run locally to upload your real resume.' });
