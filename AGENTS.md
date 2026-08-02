@@ -6,41 +6,56 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # GetAJobFaster Agent Guide
 
-Agent entrypoint for GetAJobFaster.
+Agent entrypoint for GetAJobFaster. Read `README.md` first for what the product
+does and how to run it.
 
-Current repo folder: `/Users/jagdishbandi/claude-projects/job-autofiller`.
+## Stack
 
-## Read First
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · Framer Motion ·
+Playwright · Anthropic SDK · Neon serverless Postgres.
 
-1. `../AI_SYNC.md` — coordination, active owner, handoff notes.
-2. `../AGENTS.md` — user/project memory written for Codex-style agents.
-3. `../memory/projects/getajobfaster.md` — compact product source of truth.
-4. `../getajobfaster-build-prompt.md` — detailed phase plan.
-5. `CLAUDE.md` — Claude-facing summary, useful for shared context.
+## Scripts
 
-## Repo Facts
+- `npm run dev` — dev server on http://localhost:4000
+- `npm run build` — production build
+- `npm run lint` — eslint (must be clean before a PR)
 
-- Stack: Next.js 16.2.2, React 19.2.4, Tailwind 4, Framer Motion, Playwright, Anthropic SDK, Neon serverless Postgres.
-- Scripts: `npm run dev` serves on port 4000, `npm run build`, `npm run lint`.
-- Database: `lib/db.ts` uses `@neondatabase/serverless` tagged SQL. Do not add SQLite or better-sqlite3 back.
-- Auth/email: Gmail routes already exist and should be preserved.
-- Current git noise: `.DS_Store` is untracked; do not touch it unless the user asks.
+## Layout
 
-## Active Phase
+- `app/page.tsx`, `app/knowledge/page.tsx` — the two pages; both are thin and
+  compose components.
+- `components/home/`, `components/knowledge/`, `components/layout/`,
+  `components/effects/` — UI. `AppProvider.tsx` holds shared client state.
+- `hooks/` — data hooks (`useProfile`, `useApplications`) and shared `types.ts`.
+- `app/api/*` — route handlers: `apply`, `upload`, `parse-resume`, `profile`,
+  `applications`, `documents`, `training`, `health`, and Gmail
+  (`auth/google`, `auth/callback`, `gmail`).
+- `lib/autofiller.ts` — the Playwright autofill engine (the core of the app).
+- `lib/db.ts` — Neon tagged SQL plus idempotent `initDb()` schema/migrations.
+- `lib/demo.ts` — `isDemo()` plus sample data for the read-only Vercel demo.
+- `lib/rate-limit.ts` — in-memory limiter for the expensive routes.
 
-Phase 1 from `../getajobfaster-build-prompt.md` is still active:
+## Invariants
 
-- Remove the accounts/password feature.
-- Delete stale SQLite database artifacts from the repo.
-- Generalize `.gitignore` database ignores.
-- Verify build/lint after cleanup when feasible.
+- **Never submit an application.** `lib/autofiller.ts` fills forms and stops;
+  any change that could click submit/apply/continue is a bug.
+- **Demo mode stays safe.** On Vercel (`isDemo()`), routes must serve sample
+  data, persist nothing, and spend no Anthropic credits. Every new route that
+  writes or calls Claude needs a demo guard.
+- **Postgres only.** `lib/db.ts` uses `@neondatabase/serverless` tagged SQL —
+  do not reintroduce SQLite/better-sqlite3, and keep values interpolated
+  through tagged templates so they stay parameterized.
+- **Never expose Gmail tokens.** `/api/profile` selects safe columns only and
+  reports Gmail state as a boolean.
+- Schema changes go in `initDb()` as `CREATE TABLE IF NOT EXISTS` /
+  `ADD COLUMN IF NOT EXISTS` so they stay idempotent.
 
 ## Engineering Rules
 
-- Check `../AI_SYNC.md` before edits and update it before handoff.
-- Keep changes small and phase-aligned.
-- Preserve Neon SQL syntax and Gmail routes.
-- Prefer Tailwind classes over inline styles during UI refactors.
-- Do not introduce broad abstractions before the component split makes them useful.
-- For frontend changes, verify in browser screenshots after the dev server is running.
-- For Next.js API/framework questions, read local Next docs in `node_modules/next/dist/docs/` first.
+- Keep changes small and scoped; prefer Tailwind classes over inline styles.
+- Don't add broad abstractions ahead of a second real use.
+- Verify frontend changes in the browser with the dev server running.
+- For Next.js API/framework questions, read the local docs in
+  `node_modules/next/dist/docs/` first.
+- Don't commit build artifacts (`.next/`, `*.tsbuildinfo`), OS junk
+  (`.DS_Store`), or one-off debug scripts.
